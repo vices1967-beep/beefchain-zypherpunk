@@ -101,7 +101,7 @@ pub struct PublicConsumerData {
     pub pais_origen: felt252,
 }
 
-// ============ NUEVAS ESTRUCTURAS PARA PRIVACIDAD ZK ============
+// ============ NUEVAS ESTRUCTURAS PARA PRIVACIDAD ============
 
 #[derive(Drop, Copy, Serde, starknet::Store)]
 pub struct PrivacyData {
@@ -124,14 +124,6 @@ pub struct PrivacyDashboard {
     pub total_private_transfers: u32,
     pub last_proof_hash: felt252,
     pub privacy_score: u8,
-}
-
-#[derive(Drop, Serde)]
-pub struct NoirProofData {
-    pub proof_hash: felt252,
-    pub public_inputs: Array<felt252>,
-    pub verification_key: felt252,
-    pub proof_type: felt252,
 }
 
 // ============ INTERFAZ DEL CONTRATO ============
@@ -315,7 +307,6 @@ pub trait IAnimalNFT<TContractState> {
 
     // === NUEVAS FUNCIONES DE PRIVACIDAD ZK ===
     fn enable_private_mode(ref self: TContractState, animal_id: u128);
-    fn disable_private_mode(ref self: TContractState, animal_id: u128);
     fn private_transfer_animal(
         ref self: TContractState,
         animal_id: u128,
@@ -326,7 +317,6 @@ pub trait IAnimalNFT<TContractState> {
     ) -> felt252;
     fn get_privacy_dashboard(self: @TContractState, animal_id: u128) -> PrivacyDashboard;
     fn get_zk_identity(self: @TContractState, account: ContractAddress) -> felt252;
-    fn register_zk_identity(ref self: TContractState, zk_hash: felt252);
     fn verify_proof_status(self: @TContractState, proof_hash: felt252) -> (bool, PriceRange);
     fn generate_authenticity_proof(ref self: TContractState, qr_hash: felt252) -> felt252;
     fn get_verified_consumer_data(
@@ -334,11 +324,6 @@ pub trait IAnimalNFT<TContractState> {
         qr_hash: felt252,
         authenticity_proof: felt252
     ) -> (PublicConsumerData, bool, felt252);
-    fn verify_noir_proof(
-        self: @TContractState,
-        proof_data: Array<felt252>,
-        verification_key: felt252
-    ) -> bool;
 }
 
 // ============ IMPLEMENTACIÓN DEL CONTRATO ============
@@ -349,16 +334,13 @@ pub mod AnimalNFT {
     use starknet::get_caller_address;
     use starknet::get_block_timestamp;
     use starknet::storage::Map;
-    use core::traits::Into;
-    use core::traits::TryInto;
-    use core::option::OptionTrait;
     use core::array::ArrayTrait;
     
     // Importar todas las estructuras
     use super::{
         AnimalData, CorteData, LoteAnimalData, IoTReading, CertificationData, 
         ExportData, ParticipantInfo, QRData, PublicConsumerData, PrivacyData,
-        PriceRange, PrivacyDashboard, NoirProofData
+        PriceRange, PrivacyDashboard
     };
 
     // === DEFINICIÓN DE ROLES ===
@@ -474,21 +456,13 @@ pub mod AnimalNFT {
         privacy_data: Map<u128, PrivacyData>,
         zk_identities: Map<ContractAddress, felt252>,
         verified_proofs: Map<felt252, bool>,
+        // CORREGIDO: Separar en dos maps en lugar de uno con struct
         proof_min_prices: Map<felt252, u128>,
         proof_max_prices: Map<felt252, u128>,
         
         // Contadores para dashboard
         total_private_transfers: u128,
         privacy_active_animals: u128,
-
-        // Sistema de verificadores Noir
-        noir_verification_keys: Map<felt252, felt252>,
-        // Eliminar esta línea y usar storage separado
-        noir_proof_hashes: Map<felt252, felt252>, // proof_hash -> verification_key
-        noir_proof_types: Map<felt252, felt252>,  // proof_hash -> proof_type
-        noir_proof_timestamps: Map<felt252, u64>, // proof_hash -> timestamp
-        // noir_proof_registry: Map<felt252, NoirProofData>,
-        next_proof_id: u128,
     }
 
     // === EVENTS ===
@@ -683,20 +657,6 @@ pub mod AnimalNFT {
         pub timestamp: u64,
     }
 
-    #[derive(Drop, starknet::Event)]
-    pub struct PrivacyModeDisabled {
-        pub animal_id: u128,
-        pub owner_zk_hash: felt252,
-        pub timestamp: u64,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct NoirProofVerified {
-        pub proof_hash: felt252,
-        pub proof_type: felt252,
-        pub timestamp: u64,
-    }
-
     #[event]
     #[derive(Drop, starknet::Event)]
     pub enum Event {
@@ -723,8 +683,6 @@ pub mod AnimalNFT {
         PrivateAnimalTransferred: PrivateAnimalTransferred,
         ZKIdentityGenerated: ZKIdentityGenerated,
         PrivacyModeEnabled: PrivacyModeEnabled,
-        PrivacyModeDisabled: PrivacyModeDisabled,
-        NoirProofVerified: NoirProofVerified,
     }
 
     // === CONSTRUCTOR ===
@@ -735,7 +693,6 @@ pub mod AnimalNFT {
         self.next_batch_id.write(1);
         self.next_lote_id.write(1);
         self.next_qr_nonce.write(1);
-        self.next_proof_id.write(1);
         
         // Setup role admins
         self.role_admin.write(DEFAULT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
@@ -1158,10 +1115,15 @@ pub mod AnimalNFT {
             // VERIFICACIÓN SIMPLIFICADA PARA HACKATHON
             // En producción esto usaría circuitos Noir reales
             
+            // CORREGIDO: Verificar directamente con felt252 en lugar de ByteArray
+            let proof_str: felt252 = proof;
+            
             // Cualquier proof que empiece con "VALID_" es aceptado para el demo
-            if proof == 'VALID_PROOF_DEMO' {
-                return true;
-            }
+            // CORREGIDO: Usar comparación directa en lugar de starts_with
+            if proof_str == 'VALID_PROOF_DEMO' {
+        // CORREGIDO: Guardar en maps separados
+            return true;
+        }
             
             false
         }
@@ -1229,11 +1191,13 @@ pub mod AnimalNFT {
                 let (animal_id, corte_id) = self.qr_to_corte.read(qr_hash);
                 let corte = self.cortes_data.read((animal_id, corte_id));
                 // Para cortes, verificar que está certificado Y proof es válido
+                // CORREGIDO: Verificación simplificada sin starts_with
                 corte.certificado && proof == 'AUTH_CORTE_VALID'
             } else if qr_data.data_type == 'ANIMAL' {
                 let animal_id = self.qr_to_animal.read(qr_hash);
                 let animal = self.animal_data.read(animal_id);
                 // Para animales, verificar que está procesado
+                // CORREGIDO: Verificación simplificada sin starts_with
                 animal.estado >= 1 && proof == 'AUTH_ANIMAL_VALID'
             } else {
                 false
@@ -1255,70 +1219,6 @@ pub mod AnimalNFT {
             }
             
             score
-        }
-
-        // ============ FUNCIONES NOIR/ZK REALES ============
-
-        fn _verify_noir_proof(
-            self: @ContractState,
-            proof_data: Array<felt252>,
-            verification_key: felt252
-        ) -> bool {
-            // IMPLEMENTACIÓN REAL DE VERIFICACIÓN NOIR
-            // Esta función se integraría con el verificador Noir compilado
-            
-            // Para el demo, verificamos proof básico
-            if proof_data.len() == 0 {
-                return false;
-            }
-
-            // Verificación simplificada - en producción usaría el verificador real
-            let stored_key = self.noir_verification_keys.read(verification_key);
-            if stored_key != verification_key {
-                return false;
-            }
-
-            // Lógica básica de verificación
-            let proof_valid = *proof_data.at(0) != 0;
-            let inputs_valid = proof_data.len() > 1;
-
-            proof_valid && inputs_valid
-        }
-
-        fn _register_noir_proof(
-            ref self: ContractState,
-            proof_data: Array<felt252>,
-            verification_key: felt252,
-            proof_type: felt252
-        ) -> felt252 {
-            let proof_id = self.next_proof_id.read();
-            self.next_proof_id.write(proof_id + 1);
-
-            let proof_hash = 'NOIR_PROOF_' + proof_id.into() + '_' + get_block_timestamp().into();
-
-            // Guardar en storage separado en lugar de struct
-            self.noir_proof_hashes.write(proof_hash, proof_hash);
-            self.noir_verification_keys.write(proof_hash, verification_key);
-            self.noir_proof_types.write(proof_hash, proof_type);
-            self.noir_proof_timestamps.write(proof_hash, get_block_timestamp());
-            self.verified_proofs.write(proof_hash, true);
-
-            self.emit(Event::NoirProofVerified(NoirProofVerified {
-                proof_hash: proof_hash,
-                proof_type: proof_type,
-                timestamp: get_block_timestamp(),
-            }));
-
-            proof_hash
-        }
-
-        fn _setup_verification_key(
-            ref self: ContractState,
-            circuit_id: felt252,
-            verification_key: felt252
-        ) {
-            self._check_role(DEFAULT_ADMIN_ROLE);
-            self.noir_verification_keys.write(circuit_id, verification_key);
         }
     }
 
@@ -3083,30 +2983,6 @@ pub mod AnimalNFT {
                 timestamp: get_block_timestamp(),
             }));
         }
-
-        fn disable_private_mode(ref self: ContractState, animal_id: u128) {
-            let caller = get_caller_address();
-            let animal = self.animal_data.read(animal_id);
-            let owner_zk = self._get_zk_identity(animal.propietario);
-            
-            assert!(animal.propietario == caller, "Only owner can disable privacy");
-            
-            let mut privacy_data = self._get_privacy_data(animal_id);
-            privacy_data.is_private = false;
-            self._update_privacy_data(animal_id, privacy_data);
-            
-            // Actualizar contador global
-            let current_active = self.privacy_active_animals.read();
-            if current_active > 0 {
-                self.privacy_active_animals.write(current_active - 1);
-            }
-            
-            self.emit(Event::PrivacyModeDisabled(PrivacyModeDisabled {
-                animal_id: animal_id,
-                owner_zk_hash: owner_zk,
-                timestamp: get_block_timestamp(),
-            }));
-        }
         
         fn private_transfer_animal(
             ref self: ContractState,
@@ -3202,20 +3078,6 @@ pub mod AnimalNFT {
         ) -> felt252 {
             self._get_zk_identity(account)
         }
-
-        fn register_zk_identity(
-            ref self: ContractState,
-            zk_hash: felt252
-        ) {
-            let caller = get_caller_address();
-            self.zk_identities.write(caller, zk_hash);
-            
-            self.emit(Event::ZKIdentityGenerated(ZKIdentityGenerated {
-                account: caller,
-                zk_hash: zk_hash,
-                timestamp: get_block_timestamp(),
-            }));
-        }
         
         fn verify_proof_status(
             self: @ContractState,
@@ -3234,7 +3096,6 @@ pub mod AnimalNFT {
             
             (is_verified, price_range)
         }
-
         fn generate_authenticity_proof(
             ref self: ContractState,
             qr_hash: felt252
@@ -3265,14 +3126,6 @@ pub mod AnimalNFT {
             let is_authentic = self._verify_authenticity_proof(qr_hash, authenticity_proof);
             
             (public_data, is_authentic, authenticity_proof)
-        }
-
-        fn verify_noir_proof(
-            self: @ContractState,
-            proof_data: Array<felt252>,
-            verification_key: felt252
-        ) -> bool {
-            self._verify_noir_proof(proof_data, verification_key)
         }
     }
 }

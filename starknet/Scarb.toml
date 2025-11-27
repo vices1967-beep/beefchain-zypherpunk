@@ -18,7 +18,7 @@ deprecated_legacy_map = []
 
 [tool.sncast]
 account = "my_wallet"
-url = "https://sepolia.starknet.io"
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_9/bfSh0FsjimlRfG4gbElki"
 chain_id = "SN_SEPOLIA"
 accounts-file = "~/.starknet_accounts/starknet_open_zeppelin_accounts.json"
 
