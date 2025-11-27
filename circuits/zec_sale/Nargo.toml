@@ -1,0 +1,6 @@
+[package]
+name = "zec_sale"
+type = "bin"
+authors = [""]
+
+[dependencies]

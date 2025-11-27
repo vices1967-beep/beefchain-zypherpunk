@@ -1,0 +1,5 @@
+seller_secret = "10"
+buyer_secret = "20"
+animal_id = "42"
+expected_seller = "52"
+expected_buyer = "62"

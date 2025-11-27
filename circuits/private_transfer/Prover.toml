@@ -1,0 +1,3 @@
+owner_secret = "5"
+animal_id = "42" 
+expected_result = "210"

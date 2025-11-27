@@ -1,0 +1,6 @@
+[package]
+name = "private_transfer"
+type = "bin"
+authors = [""]
+
+[dependencies]
