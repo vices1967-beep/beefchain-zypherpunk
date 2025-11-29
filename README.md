@@ -66,22 +66,32 @@ BeefChain is a comprehensive traceability platform for the meat industry that us
 - [Deployer: Voyager Explorer](https://sepolia.voyager.online)
 - [Previous Contract: Voyager Explorer](https://sepolia.voyager.online)
 
+# 🥩 BeefChain - ZK-Powered Meat Traceability
+
+## 🎯 Zypherpunk Hackathon: Starknet Track Submission
+
+### 🏆 Hackathon Focus: Creative Privacy Applications
+**Building Private Supply Chain Infrastructure on Ztarknet leveraging Noir Contracts & Garaga**
+
+---
+
 ## 🔧 Core Functionalities
 
 ### For Producers
 - `create_animal_simple(raza)` - Quick animal creation
-- `create_animal()` - Complete registration with metadata
+- `create_animal()` - Complete registration with metadata  
 - `create_animal_batch()` - Batch management
 - `update_animal_weight()` - Weight updates
-- **NEW**: `enable_private_mode()` - Activate ZK privacy for animal
-- **NEW**: `private_transfer_animal()` - Transfer with hidden price
+- **ZK PRIVACY**: `enable_private_mode()` - Activate ZK privacy for animal
+- **ZK TRANSFER**: `private_transfer_animal()` - Transfer with hidden price & identity
+- **GARAGA INTEGRATION**: `verify_zec_sale_with_proof()` - Verify ZEC payments with ZK proofs
 
 ### For Slaughterhouses
 - `procesar_animal()` - Individual processing
-- `procesar_batch()` - Batch processing
+- `procesar_batch()` - Batch processing  
 - `crear_corte()` - Cut generation with QR
 - `crear_cortes_para_batch()` - Mass production
-- **NEW**: `generate_authenticity_proof()` - Generate ZK proof for consumer verification
+- **ZK AUTHENTICITY**: `generate_authenticity_proof()` - Generate ZK proof for consumer verification
 
 ### For Veterinarians
 - `add_health_record()` - Medical history recording
@@ -106,8 +116,259 @@ BeefChain is a comprehensive traceability platform for the meat industry that us
 - `get_public_consumer_data()` - Traceability data
 - `verify_qr_authenticity()` - Authenticity verification
 - `generate_qr_for_corte()` - QR code generation
-- **NEW**: `get_verified_consumer_data()` - Data with ZK authenticity proof
-- **NEW**: `get_privacy_dashboard()` - View privacy status
+- **ZK VERIFICATION**: `get_verified_consumer_data()` - Data with ZK authenticity proof
+- **ZK DASHBOARD**: `get_privacy_dashboard()` - View privacy status
+- **GARAGA PROOFS**: `verify_price_with_proof()` - Verify fair pricing with ZK
+
+---
+
+## 🔐 ZK Privacy & Garaga Integration
+
+### Zero-Knowledge Circuit Architecture
+
+```mermaid
+graph TB
+    A[BeefChain Supply Chain] --> B[ZK Privacy Layer]
+    
+    B --> C[Private Transfer Circuit]
+    B --> D[ZEC Sale Verification Circuit] 
+    B --> E[Price Verification Circuit]
+    B --> F[Authenticity Proof Circuit]
+    
+    C --> C1[Hidden Identities]
+    C --> C2[Hidden Price Ranges]
+    C --> C3[Transfer Proofs]
+    
+    D --> D1[ZEC Payment Proofs]
+    D --> D2[Cross-chain Verification]
+    D --> D3[Shielded Transactions]
+    
+    E --> E1[Fair Price Proofs]
+    E --> E2[Market Data Privacy]
+    E --> E3[Range Proofs]
+    
+    F --> F1[Product Authenticity]
+    F --> F2[Supply Chain Proofs]
+    F --> F3[Consumer Verification]
+    
+    style B fill:#e1f5fe
+    style C fill:#f3e5f5
+    style D fill:#e8f5e8
+    style E fill:#fff3e0
+    style F fill:#fce4ec
+```
+
+## 🎯 Hackathon-Critical ZK Circuits
+### 1. Private Transfer Circuit 🕶️
+```mermaid
+flowchart LR
+    A[Seller ZK Identity] --> B{Private Transfer<br/>Circuit}
+    C[Buyer ZK Identity] --> B
+    D[Price Range Proof] --> B
+    E[Animal Metadata] --> B
+    
+    B --> F[ZK Proof Generation]
+    F --> G[✅ Transfer Executed]
+    F --> H[🔒 Hidden Details]
+    
+    subgraph Hidden["🛡️ Hidden from Blockchain"]
+        I[Actual Price]
+        J[Identities]
+        K[Transaction History]
+    end
+    
+    style B fill:#ffebee
+    style F fill:#e8f5e8
+```
+### 2. ZEC Sale Verification Circuit ⚡
+```mermaid
+flowchart TB
+    A[Zcash Layer] --> B[ZEC Payment]
+    B --> C{Garaga Verifier<br/>Circuit}
+    
+    D[Seller ZK Identity] --> C
+    E[Buyer ZK Identity] --> C  
+    F[Payment Amount] --> C
+    G[Animal Token ID] --> C
+    
+    C --> H[ZK Proof of Sale]
+    H --> I[BeefChain Contract]
+    I --> J[✅ Animal Ownership<br/>Transferred]
+    
+    subgraph Privacy["🛡️ Private Elements"]
+        K[Actual Identities]
+        L[Exact Amount]
+        M[Business Terms]
+    end
+    
+    style C fill:#e3f2fd
+    style H fill:#e8f5e8
+```
+### 3. Price Verification Circuit 💰
+```mermaid
+flowchart LR
+    A[Market Data] --> B{Price Verification<br/>Circuit}
+    C[Historical Prices] --> B
+    D[Quality Metrics] --> B
+    
+    B --> E[ZK Price Proof]
+    E --> F[✅ Fair Price Range<br/>Min-Max Verified]
+    
+    subgraph HiddenData["🔒 Hidden Market Logic"]
+        G[Pricing Algorithm]
+        H[Competitor Data]
+        I[Profit Margins]
+    end
+    
+    style B fill:#fff3e0
+    style E fill:#e8f5e8
+```
+## 🚀 Garaga Integration Architecture
+```mermaid
+graph TB
+    A[Noir Circuits] --> B[Garaga Verifiers]
+    B --> C[BeefChain Smart Contract]
+    
+    subCircuit[ZK Circuits] --> A
+    
+    subCircuit -.-> D[private_transfer.json]
+    subCircuit -.-> E[zec_sale.json] 
+    subCircuit -.-> F[price_verification.json]
+    
+    B --> G[Private Transfer Verifier]
+    B --> H[ZEC Sale Verifier]
+    B --> I[Price Verification Verifier]
+    
+    C --> J[Supply Chain Logic]
+    C --> K[ZK State Management]
+    C --> L[Proof Verification]
+    
+    style A fill:#7e57c2
+    style B fill:#5e35b1
+    style C fill:#4527a0
+
+```
+## 🔧 Technical Innovation Stack
+```mermaid
+quadrantChart
+    title BeefChain Technical Innovation Matrix
+    x-axis "Existing Tech" --> "Novel Implementation"
+    y-axis "Basic Privacy" --> "Advanced ZK"
+    "Traditional Supply Chain": [0.2, 0.3]
+    "Basic Blockchain Traceability": [0.4, 0.5]
+    "BeefChain ZK Implementation": [0.8, 0.9]
+    "Future State - Full ZK": [0.95, 0.95]
+```
+
+## 🎯 Hackathon Alignment
+
+### 🏆 Creative Privacy Applications Track
+**Private Supply Chain Infrastructure** - A first-of-its-kind ZK-powered meat traceability system that protects:
+
+<div align="center">
+
+| Privacy Dimension | Protection Level | Key Features |
+|-------------------|------------------|--------------|
+| **🔒 Business Privacy** | 🛡️ High | Hidden pricing, transaction terms, profit margins |
+| **👤 Identity Privacy** | 🛡️ High | Anonymous participant identities, ZK proofs |
+| **📊 Market Privacy** | 🛡️ Medium | Protected business intelligence, competitor data |
+| **👁️ Consumer Privacy** | 🛡️ Medium | Selective disclosure, verified authenticity |
+
+</div>
+
+### 🔧 Technical Innovation Stack
+
+```mermaid
+quadrantChart
+    title BeefChain Technical Innovation Matrix
+    x-axis "Existing Tech" --> "Novel Implementation"
+    y-axis "Basic Privacy" --> "Advanced ZK"
+    "Traditional Supply Chain": [0.2, 0.3]
+    "Basic Blockchain Traceability": [0.4, 0.5]
+    "BeefChain ZK Implementation": [0.8, 0.9]
+    "Future State - Full ZK": [0.95, 0.95]
+```
+
+## 🛡️ Privacy Features for Hackathon Judging
+
+<div align="center">
+
+| Feature | ZK Circuit | Garaga Integration | Hackathon Impact |
+|---------|------------|-------------------|------------------|
+| **Private Transfers** | ✅ Custom Noir Circuit | ✅ Verifier Contract | 🏆 **High** - Novel privacy |
+| **ZEC Payments** | ✅ Cross-chain Circuit | ✅ Garaga Proofs | 🏆 **High** - Zcash integration |
+| **Price Privacy** | ✅ Range Proofs | ✅ Market Verifiers | 🏆 **Medium** - Business privacy |
+| **Identity Protection** | ✅ ZK Identities | ✅ Anonymous proofs | 🏆 **High** - User privacy |
+
+</div>
+
+---
+
+## 🚀 Quick Start for Hackathon Demo
+
+### 1. **Setup ZK Identities**
+```bash
+./scripts/setup_roles.sh
+```
+
+
+
+
+
+
+## 📊 Hackathon Metrics
+
+<div align="center">
+
+| Metric | Status | Details |
+|--------|:------:|---------|
+| **Working Prototype** | ✅ **Fully Deployed** | Live on Ztarknet Testnet |
+| **ZK Circuits** | ✅ **3 Implemented** | Private Transfer, ZEC Sale, Price Verification |
+| **Garaga Integration** | ✅ **Proof System Ready** | Verifier contracts integrated |
+| **Privacy Features** | ✅ **4 Dimensions** | Business, Identity, Market, Consumer |
+| **Zcash Compatibility** | ✅ **ZEC Ready** | Cross-chain payment verification |
+
+</div>
+
+---
+
+## 🎯 Why This Wins Creative Privacy Applications
+
+### 🥇 Novel Use Case
+First ZK-powered meat supply chain addressing real-world agricultural privacy needs
+
+### 🥈 Complete Privacy Stack
+- **Identity Protection**: Anonymous participant verification
+- **Business Privacy**: Hidden pricing and transaction terms  
+- **Market Intelligence**: Protected competitive data
+- **Consumer Trust**: Verified authenticity without oversharing
+
+### 🥉 Zcash Integration
+Seamless cross-chain ZEC payment verification with Garaga proofs
+
+### 🏅 Production Ready
+- ✅ Fully functional on Ztarknet/Starknet
+- ✅ Smart contracts deployed and tested
+- ✅ ZK circuits implemented and verified
+- ✅ Real-world supply chain use case
+
+### 💡 Real Impact
+Solves actual supply chain privacy concerns for producers, distributors, and consumers
+
+---
+
+## 🚀 Built for Zypherpunk Hackathon - Ready to Demo!
+
+---
+
+## 🔗 Contract Addresses
+
+- **Main Contract**: `0x07c5cc97cca3cb33dc9bfd2fc02f0b7ebe838e1052d00a5aa47f91e75688762c`
+- **Network**: Ztarknet-Madara Testnet
+- **Status**: ✅ **Fully Deployed & Operational**
+
+
+
 
 ## 🚀 Quick Start
 
