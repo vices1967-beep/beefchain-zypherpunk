@@ -1,3 +1,7 @@
-owner_secret = "5"
-animal_id = "42" 
-expected_result = "210"
+from_zk = 1111111111
+to_zk = 2222222222
+animal_id = 12345
+price = 1500
+timestamp = 1700000000
+signature = 3333333333
+expected_commitment = 4444444444

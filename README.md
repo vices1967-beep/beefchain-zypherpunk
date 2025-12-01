@@ -276,18 +276,6 @@ quadrantChart
 
 </div>
 
-### 🔧 Technical Innovation Stack
-
-```mermaid
-quadrantChart
-    title BeefChain Technical Innovation Matrix
-    x-axis "Existing Tech" --> "Novel Implementation"
-    y-axis "Basic Privacy" --> "Advanced ZK"
-    "Traditional Supply Chain": [0.2, 0.3]
-    "Basic Blockchain Traceability": [0.4, 0.5]
-    "BeefChain ZK Implementation": [0.8, 0.9]
-    "Future State - Full ZK": [0.95, 0.95]
-```
 
 ## 🛡️ Privacy Features for Hackathon Judging
 
@@ -310,11 +298,6 @@ quadrantChart
 ```bash
 ./scripts/setup_roles.sh
 ```
-
-
-
-
-
 
 ## 📊 Hackathon Metrics
 
@@ -413,7 +396,7 @@ cd beefchain-zypherpunk
 `bash`
 
 `npm run dev`
-
+```
 ## **📁 Project Structure** 
 
 `text`
@@ -495,10 +478,6 @@ beefchain-zypherpunk/frontend/
 * Explorer: `https://sepolia.voyager.online`  
 * Network: `sepolia`
 
-## **🔐 ChipyPay Integration**
-
-* Private Key: `sk_dev_916327c90fe67a75d0809810639f6705533dac27573e36afa7147a6e8a352531`  
-* Public Key: `pk_dev_d7e6505de47e23fd8633013288c34f36`
 
 ## **🎯 Hackathon Features- ZYPHERPUNK EDITION **
 
