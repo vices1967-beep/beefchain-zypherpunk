@@ -41,7 +41,6 @@ mod errors;
 
 
 // Contrato principal AnimalNFT
-mod AnimalNFT;
 
 // Verificadores ZK
 mod private_transfer_verifier;
