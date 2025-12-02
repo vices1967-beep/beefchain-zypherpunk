@@ -2,5 +2,5 @@
 version = 1
 
 [[package]]
-name = "beefchain"
+name = "ganadochain"
 version = "1.0.0"
