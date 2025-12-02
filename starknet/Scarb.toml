@@ -1,9 +1,9 @@
 [package]
-name = "beefchain"
+name = "ganadochain"
 version = "1.0.0"
 edition = "2023_11"
-description = "BeefChain - Cross-chain beef tracking system with Starknet, Polygon and Bitcoin integration"
-authors = ["BeefChain Team"]
+description = "GanadoChain - Cross-chain livestock tracking system with Starknet, Polygon and Bitcoin integration"
+authors = ["GanadoChain Team"]
 license = "MIT"
 repository = "https://github.com/ganadochain/contracts"
 

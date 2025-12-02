@@ -101,7 +101,7 @@ pub struct PublicConsumerData {
     pub pais_origen: felt252,
 }
 
-// ============ NUEVAS ESTRUCTURAS PARA PRIVACIDAD ZK ============
+// ============ NUEVAS ESTRUCTURAS PARA PRIVACIDAD ============
 
 #[derive(Drop, Copy, Serde, starknet::Store)]
 pub struct PrivacyData {
@@ -124,39 +124,6 @@ pub struct PrivacyDashboard {
     pub total_private_transfers: u32,
     pub last_proof_hash: felt252,
     pub privacy_score: u8,
-}
-
-// ============ NUEVAS ESTRUCTURAS PARA INTEGRACIÓN GARAGA ============
-
-#[derive(Drop, Copy, Serde, starknet::Store)]
-pub struct ZecSaleProof {
-    pub proof_hash: felt252,
-    pub seller_zk: felt252,
-    pub buyer_zk: felt252,
-    pub amount: u256,
-    pub token_id: felt252,
-    pub timestamp: u64,
-    pub verified: bool,
-}
-
-#[derive(Drop, Copy, Serde, starknet::Store)]
-pub struct PriceVerificationProof {
-    pub proof_hash: felt252,
-    pub price_range: PriceRange,
-    pub market_data_hash: felt252,
-    pub timestamp: u64,
-    pub verified: bool,
-}
-
-#[derive(Drop, Copy, Serde, starknet::Store)]
-pub struct PrivateTransferProof {
-    pub proof_hash: felt252,
-    pub from_zk: felt252,
-    pub to_zk: felt252,
-    pub animal_id: u128,
-    pub price_proof: felt252,
-    pub timestamp: u64,
-    pub verified: bool,
 }
 
 // ============ INTERFAZ DEL CONTRATO ============
@@ -340,7 +307,6 @@ pub trait IAnimalNFT<TContractState> {
 
     // === NUEVAS FUNCIONES DE PRIVACIDAD ZK ===
     fn enable_private_mode(ref self: TContractState, animal_id: u128);
-    fn disable_private_mode(ref self: TContractState, animal_id: u128);
     fn private_transfer_animal(
         ref self: TContractState,
         animal_id: u128,
@@ -351,7 +317,6 @@ pub trait IAnimalNFT<TContractState> {
     ) -> felt252;
     fn get_privacy_dashboard(self: @TContractState, animal_id: u128) -> PrivacyDashboard;
     fn get_zk_identity(self: @TContractState, account: ContractAddress) -> felt252;
-    fn register_zk_identity(ref self: TContractState, zk_hash: felt252);
     fn verify_proof_status(self: @TContractState, proof_hash: felt252) -> (bool, PriceRange);
     fn generate_authenticity_proof(ref self: TContractState, qr_hash: felt252) -> felt252;
     fn get_verified_consumer_data(
@@ -359,41 +324,6 @@ pub trait IAnimalNFT<TContractState> {
         qr_hash: felt252,
         authenticity_proof: felt252
     ) -> (PublicConsumerData, bool, felt252);
-
-    // === NUEVAS FUNCIONES DE INTEGRACIÓN GARAGA ===
-    fn verify_zec_sale_with_proof(
-        ref self: TContractState,
-        animal_id: u128,
-        proof_data: Array<felt252>,
-        public_inputs: Array<felt252>
-    ) -> felt252;
-    
-    fn verify_price_with_proof(
-        ref self: TContractState,
-        animal_id: u128,
-        proof_data: Array<felt252>,
-        public_inputs: Array<felt252>
-    ) -> felt252;
-    
-    fn execute_private_transfer_with_proof(
-        ref self: TContractState,
-        animal_id: u128,
-        proof_data: Array<felt252>,
-        public_inputs: Array<felt252>
-    ) -> felt252;
-    
-    fn get_zec_sale_proof(self: @TContractState, proof_hash: felt252) -> ZecSaleProof;
-    fn get_price_verification_proof(self: @TContractState, proof_hash: felt252) -> PriceVerificationProof;
-    fn get_private_transfer_proof(self: @TContractState, proof_hash: felt252) -> PrivateTransferProof;
-    
-    fn link_animal_to_zec_sale(
-        ref self: TContractState,
-        animal_id: u128,
-        zec_sale_proof_hash: felt252
-    ) -> bool;
-    
-    fn is_animal_zec_verified(self: @TContractState, animal_id: u128) -> bool;
-    fn get_animal_zec_proof(self: @TContractState, animal_id: u128) -> felt252;
 }
 
 // ============ IMPLEMENTACIÓN DEL CONTRATO ============
@@ -404,17 +334,13 @@ pub mod AnimalNFT {
     use starknet::get_caller_address;
     use starknet::get_block_timestamp;
     use starknet::storage::Map;
-    use core::traits::Into;
-    use core::traits::TryInto;
-    use core::option::OptionTrait;
     use core::array::ArrayTrait;
     
     // Importar todas las estructuras
     use super::{
         AnimalData, CorteData, LoteAnimalData, IoTReading, CertificationData, 
         ExportData, ParticipantInfo, QRData, PublicConsumerData, PrivacyData,
-        PriceRange, PrivacyDashboard, ZecSaleProof, 
-        PriceVerificationProof, PrivateTransferProof
+        PriceRange, PrivacyDashboard
     };
 
     // === DEFINICIÓN DE ROLES ===
@@ -530,31 +456,13 @@ pub mod AnimalNFT {
         privacy_data: Map<u128, PrivacyData>,
         zk_identities: Map<ContractAddress, felt252>,
         verified_proofs: Map<felt252, bool>,
+        // CORREGIDO: Separar en dos maps en lugar de uno con struct
         proof_min_prices: Map<felt252, u128>,
         proof_max_prices: Map<felt252, u128>,
         
         // Contadores para dashboard
         total_private_transfers: u128,
         privacy_active_animals: u128,
-
-        // ============ NUEVO STORAGE PARA INTEGRACIÓN GARAGA ============
-        zec_sale_proofs: Map<felt252, ZecSaleProof>,
-        price_verification_proofs: Map<felt252, PriceVerificationProof>,
-        private_transfer_proofs: Map<felt252, PrivateTransferProof>,
-        
-        // Mapeo de animales a proofs ZEC
-        animal_to_zec_sale: Map<u128, felt252>, // animal_id -> zec_sale_proof_hash
-        zec_sale_to_animal: Map<felt252, u128>, // zec_sale_proof_hash -> animal_id
-        
-        // Contadores de verificaciones
-        zec_sales_verified: u128,
-        price_verifications: u128,
-        private_transfers_executed: u128,
-
-        // Verificadores externos (addresses de contratos verificadores)
-        zec_sale_verifier: ContractAddress,
-        price_verification_verifier: ContractAddress,
-        private_transfer_verifier: ContractAddress,
     }
 
     // === EVENTS ===
@@ -749,50 +657,6 @@ pub mod AnimalNFT {
         pub timestamp: u64,
     }
 
-    #[derive(Drop, starknet::Event)]
-    pub struct PrivacyModeDisabled {
-        pub animal_id: u128,
-        pub owner_zk_hash: felt252,
-        pub timestamp: u64,
-    }
-
-    // ============ NUEVOS EVENTOS PARA INTEGRACIÓN GARAGA ============
-
-    #[derive(Drop, starknet::Event)]
-    pub struct ZecSaleVerified {
-        pub animal_id: u128,
-        pub proof_hash: felt252,
-        pub seller_zk: felt252,
-        pub buyer_zk: felt252,
-        pub amount: u256,
-        pub timestamp: u64,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct PriceVerificationCompleted {
-        pub animal_id: u128,
-        pub proof_hash: felt252,
-        pub price_range: PriceRange,
-        pub timestamp: u64,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct PrivateTransferExecuted {
-        pub animal_id: u128,
-        pub proof_hash: felt252,
-        pub from_zk: felt252,
-        pub to_zk: felt252,
-        pub timestamp: u64,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct AnimalZecLinked {
-        pub animal_id: u128,
-        pub zec_sale_proof_hash: felt252,
-        pub owner: ContractAddress,
-        pub timestamp: u64,
-    }
-
     #[event]
     #[derive(Drop, starknet::Event)]
     pub enum Event {
@@ -819,22 +683,11 @@ pub mod AnimalNFT {
         PrivateAnimalTransferred: PrivateAnimalTransferred,
         ZKIdentityGenerated: ZKIdentityGenerated,
         PrivacyModeEnabled: PrivacyModeEnabled,
-        PrivacyModeDisabled: PrivacyModeDisabled,
-        ZecSaleVerified: ZecSaleVerified,
-        PriceVerificationCompleted: PriceVerificationCompleted,
-        PrivateTransferExecuted: PrivateTransferExecuted,
-        AnimalZecLinked: AnimalZecLinked,
     }
 
     // === CONSTRUCTOR ===
     #[constructor]
-    fn constructor(
-        ref self: ContractState, 
-        admin: ContractAddress,
-        zec_sale_verifier: ContractAddress,
-        price_verification_verifier: ContractAddress, 
-        private_transfer_verifier: ContractAddress
-    ) {
+    fn constructor(ref self: ContractState, admin: ContractAddress) {
         // Initialize counters
         self.next_token_id.write(1);
         self.next_batch_id.write(1);
@@ -864,16 +717,6 @@ pub mod AnimalNFT {
         // Inicializar contadores de privacidad
         self.total_private_transfers.write(0);
         self.privacy_active_animals.write(0);
-        
-        // Inicializar contadores Garaga
-        self.zec_sales_verified.write(0);
-        self.price_verifications.write(0);
-        self.private_transfers_executed.write(0);
-        
-        // Configurar verificadores externos
-        self.zec_sale_verifier.write(zec_sale_verifier);
-        self.price_verification_verifier.write(price_verification_verifier);
-        self.private_transfer_verifier.write(private_transfer_verifier);
         
         // Grant admin role to deployer
         self._grant_role(DEFAULT_ADMIN_ROLE, admin);
@@ -1272,10 +1115,15 @@ pub mod AnimalNFT {
             // VERIFICACIÓN SIMPLIFICADA PARA HACKATHON
             // En producción esto usaría circuitos Noir reales
             
+            // CORREGIDO: Verificar directamente con felt252 en lugar de ByteArray
+            let proof_str: felt252 = proof;
+            
             // Cualquier proof que empiece con "VALID_" es aceptado para el demo
-            if proof == 'VALID_PROOF_DEMO' {
-                return true;
-            }
+            // CORREGIDO: Usar comparación directa en lugar de starts_with
+            if proof_str == 'VALID_PROOF_DEMO' {
+        // CORREGIDO: Guardar en maps separados
+            return true;
+        }
             
             false
         }
@@ -1343,11 +1191,13 @@ pub mod AnimalNFT {
                 let (animal_id, corte_id) = self.qr_to_corte.read(qr_hash);
                 let corte = self.cortes_data.read((animal_id, corte_id));
                 // Para cortes, verificar que está certificado Y proof es válido
+                // CORREGIDO: Verificación simplificada sin starts_with
                 corte.certificado && proof == 'AUTH_CORTE_VALID'
             } else if qr_data.data_type == 'ANIMAL' {
                 let animal_id = self.qr_to_animal.read(qr_hash);
                 let animal = self.animal_data.read(animal_id);
                 // Para animales, verificar que está procesado
+                // CORREGIDO: Verificación simplificada sin starts_with
                 animal.estado >= 1 && proof == 'AUTH_ANIMAL_VALID'
             } else {
                 false
@@ -1369,130 +1219,6 @@ pub mod AnimalNFT {
             }
             
             score
-        }
-
-        // ============ NUEVAS FUNCIONES DE INTEGRACIÓN GARAGA ============
-
-        fn _verify_with_external_verifier(
-            self: @ContractState,
-            verifier_address: ContractAddress,
-            proof_data: Array<felt252>,
-            public_inputs: Array<felt252>
-        ) -> bool {
-            // SIMULACIÓN DE LLAMADA A VERIFICADOR EXTERNO
-            // En producción, esto llamaría al contrato verificador real
-            
-            // Para el demo, verificamos que los datos no estén vacíos
-            if proof_data.len() == 0 || public_inputs.len() == 0 {
-                return false;
-            }
-            
-            // Lógica de verificación simplificada para demo
-            let proof_valid = *proof_data.at(0) != 0;
-            let inputs_valid = public_inputs.len() > 0;
-            
-            proof_valid && inputs_valid
-        }
-        
-        fn _generate_proof_hash(
-            ref self: ContractState,
-            proof_type: felt252,
-            animal_id: u128
-        ) -> felt252 {
-            let timestamp = get_block_timestamp();
-            proof_type + '_' + animal_id.into() + '_' + timestamp.into()
-        }
-        
-        fn _extract_zec_sale_public_inputs(
-            self: @ContractState,
-            public_inputs: Array<felt252>
-        ) -> (felt252, felt252, u256, felt252) {
-            // public_inputs: [seller_zk, buyer_zk, amount, token_id]
-            assert(public_inputs.len() >= 4, 'Invalid ZEC sale public inputs');
-            
-            let seller_zk = *public_inputs.at(0);
-            let buyer_zk = *public_inputs.at(1);
-            
-            // CORREGIR: Convertir felt252 a u256 correctamente
-            let amount_felt = *public_inputs.at(2);
-            let amount: u256 = amount_felt.into();
-            
-            let token_id = *public_inputs.at(3);
-            
-            (seller_zk, buyer_zk, amount, token_id)
-        }
-        
-        fn _extract_price_verification_public_inputs(
-            self: @ContractState,
-            public_inputs: Array<felt252>
-        ) -> (u128, u128, felt252) {
-            // public_inputs: [min_price, max_price, market_data_hash]
-            assert(public_inputs.len() >= 3, 'Inval price verif pub inputs');
-            
-            // CORREGIR: Convertir felt252 a u128 usando try_into()
-            let min_price_felt = *public_inputs.at(0);
-            let min_price: u128 = min_price_felt.try_into().unwrap();
-            
-            let max_price_felt = *public_inputs.at(1);
-            let max_price: u128 = max_price_felt.try_into().unwrap();
-            
-            let market_data_hash = *public_inputs.at(2);
-            
-            (min_price, max_price, market_data_hash)
-        }
-        
-        fn _extract_private_transfer_public_inputs(
-            self: @ContractState, 
-            public_inputs: Array<felt252>
-        ) -> (felt252, felt252, u128, felt252) {
-            // public_inputs: [from_zk, to_zk, animal_id, price_proof]
-            assert(public_inputs.len() >= 4, 'Inval priv trf pub imp');
-            
-            let from_zk = *public_inputs.at(0);
-            let to_zk = *public_inputs.at(1);
-            
-            // CORREGIR: Convertir felt252 a u128 usando try_into()
-            let animal_id_felt = *public_inputs.at(2);
-            let animal_id: u128 = animal_id_felt.try_into().unwrap();
-            
-            let price_proof = *public_inputs.at(3);
-            
-            (from_zk, to_zk, animal_id, price_proof)
-        }
-        
-        fn _validate_animal_ownership_zk(
-            self: @ContractState,
-            animal_id: u128,
-            claimed_owner_zk: felt252
-        ) -> bool {
-            let privacy_data = self._get_privacy_data(animal_id);
-            privacy_data.current_owner_zk == claimed_owner_zk
-        }
-        
-        fn _execute_zk_transfer(
-            ref self: ContractState,
-            animal_id: u128,
-            from_zk: felt252,
-            to_zk: felt252
-        ) -> bool {
-            // Verificar que from_zk es el dueño actual
-            let current_owner_zk = self._get_privacy_data(animal_id).current_owner_zk;
-            assert(current_owner_zk == from_zk, 'ZK identity mismatch');
-            
-            // Obtener dirección real del nuevo dueño (simplificado para demo)
-            let to_address = self._get_address_from_zk_hash(to_zk);
-            
-            // Ejecutar transferencia real
-            let from_address = self._get_address_from_zk_hash(from_zk);
-            self._transfer_animal_internal(animal_id, from_address, to_address);
-            
-            // Actualizar datos de privacidad
-            let mut privacy_data = self._get_privacy_data(animal_id);
-            privacy_data.current_owner_zk = to_zk;
-            privacy_data.transfer_count_private += 1;
-            self._update_privacy_data(animal_id, privacy_data);
-            
-            true
         }
     }
 
@@ -2901,7 +2627,7 @@ pub mod AnimalNFT {
             (producers, frigorificos, veterinarians, iot, certifiers, exporters, auditors)
         }
 
-        // ========== FUNCIONES DE CÓDIGOS QR Y DATOS PARA CONSUMIDORES ==========
+        // ========== FUNCIONES DE CÓDIGOS QR ==========
         
         fn generate_qr_for_corte(
             ref self: ContractState,
@@ -3257,30 +2983,6 @@ pub mod AnimalNFT {
                 timestamp: get_block_timestamp(),
             }));
         }
-
-        fn disable_private_mode(ref self: ContractState, animal_id: u128) {
-            let caller = get_caller_address();
-            let animal = self.animal_data.read(animal_id);
-            let owner_zk = self._get_zk_identity(animal.propietario);
-            
-            assert!(animal.propietario == caller, "Only owner can disable privacy");
-            
-            let mut privacy_data = self._get_privacy_data(animal_id);
-            privacy_data.is_private = false;
-            self._update_privacy_data(animal_id, privacy_data);
-            
-            // Actualizar contador global
-            let current_active = self.privacy_active_animals.read();
-            if current_active > 0 {
-                self.privacy_active_animals.write(current_active - 1);
-            }
-            
-            self.emit(Event::PrivacyModeDisabled(PrivacyModeDisabled {
-                animal_id: animal_id,
-                owner_zk_hash: owner_zk,
-                timestamp: get_block_timestamp(),
-            }));
-        }
         
         fn private_transfer_animal(
             ref self: ContractState,
@@ -3376,20 +3078,6 @@ pub mod AnimalNFT {
         ) -> felt252 {
             self._get_zk_identity(account)
         }
-
-        fn register_zk_identity(
-            ref self: ContractState,
-            zk_hash: felt252
-        ) {
-            let caller = get_caller_address();
-            self.zk_identities.write(caller, zk_hash);
-            
-            self.emit(Event::ZKIdentityGenerated(ZKIdentityGenerated {
-                account: caller,
-                zk_hash: zk_hash,
-                timestamp: get_block_timestamp(),
-            }));
-        }
         
         fn verify_proof_status(
             self: @ContractState,
@@ -3408,7 +3096,6 @@ pub mod AnimalNFT {
             
             (is_verified, price_range)
         }
-
         fn generate_authenticity_proof(
             ref self: ContractState,
             qr_hash: felt252
@@ -3416,7 +3103,7 @@ pub mod AnimalNFT {
             self._check_role(FRIGORIFICO_ROLE);
             
             let qr_data = self.qr_codes.read(qr_hash);
-            let _timestamp = get_block_timestamp(); // Agregar _ para indicar que no se usa
+            let timestamp = get_block_timestamp();
             
             // Generar proof simplificado para hackathon
             let proof = if qr_data.data_type == 'CORTE' {
@@ -3439,262 +3126,6 @@ pub mod AnimalNFT {
             let is_authentic = self._verify_authenticity_proof(qr_hash, authenticity_proof);
             
             (public_data, is_authentic, authenticity_proof)
-        }
-
-        // ============ NUEVAS FUNCIONES DE INTEGRACIÓN GARAGA ============
-
-                fn verify_zec_sale_with_proof(
-            ref self: ContractState,
-            animal_id: u128,
-            proof_data: Array<felt252>,
-            public_inputs: Array<felt252>
-        ) -> felt252 {
-            self._check_role(PRODUCER_ROLE);
-            
-            let caller = get_caller_address();
-            let animal = self.animal_data.read(animal_id);
-            
-            assert!(animal.propietario == caller, "Not owner of animal");
-            assert!(!self.is_animal_zec_verified(animal_id), "Animal already ZEC verified");
-            
-            // Crear clones para evitar problemas de move
-            let public_inputs_for_verification = public_inputs.clone();
-            let public_inputs_for_extraction = public_inputs.clone();
-            
-            // Verificar con el verificador externo
-            let zec_verifier = self.zec_sale_verifier.read();
-            let is_valid = self._verify_with_external_verifier(
-                zec_verifier, proof_data, public_inputs_for_verification
-            );
-
-            assert(is_valid, 'Invalid ZEC sale proof');
-
-            // Extraer datos públicos usando el clone
-            let (seller_zk, buyer_zk, amount, token_id) = self._extract_zec_sale_public_inputs(public_inputs_for_extraction);
-            
-            // Generar proof hash único
-            let proof_hash = self._generate_proof_hash('ZEC_SALE', animal_id);
-            
-            // Crear y guardar proof
-            let zec_sale_proof = ZecSaleProof {
-                proof_hash: proof_hash,
-                seller_zk: seller_zk,
-                buyer_zk: buyer_zk,
-                amount: amount,
-                token_id: token_id,
-                timestamp: get_block_timestamp(),
-                verified: true,
-            };
-            
-            self.zec_sale_proofs.write(proof_hash, zec_sale_proof);
-            
-            // Actualizar contadores
-            self.zec_sales_verified.write(self.zec_sales_verified.read() + 1);
-            
-            self.emit(Event::ZecSaleVerified(ZecSaleVerified {
-                animal_id: animal_id,
-                proof_hash: proof_hash,
-                seller_zk: seller_zk,
-                buyer_zk: buyer_zk,
-                amount: amount,
-                timestamp: get_block_timestamp(),
-            }));
-            
-            proof_hash
-        }
-                       fn verify_price_with_proof(
-            ref self: ContractState,
-            animal_id: u128,
-            proof_data: Array<felt252>,
-            public_inputs: Array<felt252>
-        ) -> felt252 {
-            self._check_role(PRODUCER_ROLE);
-            
-            let caller = get_caller_address();
-            let animal = self.animal_data.read(animal_id);
-            
-            assert!(animal.propietario == caller, "Not owner of animal");
-            
-            // Crear clones para evitar problemas de move
-            let public_inputs_for_verification = public_inputs.clone();
-            let public_inputs_for_extraction = public_inputs.clone();
-            
-            // Verificar con el verificador externo
-            let price_verifier = self.price_verification_verifier.read();
-            let is_valid = self._verify_with_external_verifier(
-                price_verifier, proof_data, public_inputs_for_verification
-            );
-
-            assert(is_valid, 'Inval price verif pf');
-
-            // Extraer datos públicos usando el clone
-            let (min_price, max_price, market_data_hash) = self._extract_price_verification_public_inputs(public_inputs_for_extraction);
-            
-            // Generar proof hash único
-            let proof_hash = self._generate_proof_hash('PRICE_VERIFICATION', animal_id);
-            
-            // Crear y guardar proof
-            let price_proof = PriceVerificationProof {
-                proof_hash: proof_hash,
-                price_range: PriceRange { min_price: min_price, max_price: max_price },
-                market_data_hash: market_data_hash,
-                timestamp: get_block_timestamp(),
-                verified: true,
-            };
-            
-            self.price_verification_proofs.write(proof_hash, price_proof);
-            
-            // Actualizar contadores
-            self.price_verifications.write(self.price_verifications.read() + 1);
-            
-            self.emit(Event::PriceVerificationCompleted(PriceVerificationCompleted {
-                animal_id: animal_id,
-                proof_hash: proof_hash,
-                price_range: PriceRange { min_price: min_price, max_price: max_price },
-                timestamp: get_block_timestamp(),
-            }));
-            
-            proof_hash
-        }
-        
-                    fn execute_private_transfer_with_proof(
-            ref self: ContractState,
-            animal_id: u128,
-            proof_data: Array<felt252>,
-            public_inputs: Array<felt252>
-        ) -> felt252 {
-            self._check_role(PRODUCER_ROLE);
-            
-            let caller = get_caller_address();
-            let animal = self.animal_data.read(animal_id);
-            
-            assert!(animal.propietario == caller, "Not owner of animal");
-            
-            // Crear clones para evitar problemas de move
-            let public_inputs_for_verification = public_inputs.clone();
-            let public_inputs_for_extraction = public_inputs.clone();
-            
-            // Verificar con el verificador externo
-            let transfer_verifier = self.private_transfer_verifier.read();
-            let is_valid = self._verify_with_external_verifier(
-                transfer_verifier, proof_data, public_inputs_for_verification
-            );
-
-            assert(is_valid, 'Invalid private transfer proof');
-
-            // Extraer datos públicos usando el clone
-            let (from_zk, to_zk, transfer_animal_id, price_proof) = self._extract_private_transfer_public_inputs(public_inputs_for_extraction);
-            
-            // Verificar que el animal_id coincide
-            assert(animal_id == transfer_animal_id, 'Animal ID mismatch');
-            
-            // Verificar ownership ZK
-            let is_owner = self._validate_animal_ownership_zk(animal_id, from_zk);
-            assert(is_owner, 'ZK owner verif failed');
-            
-            // Ejecutar transferencia ZK
-            let transfer_success = self._execute_zk_transfer(animal_id, from_zk, to_zk);
-            assert(transfer_success, 'ZK transfer execution failed');
-            
-            // Generar proof hash único
-            let proof_hash = self._generate_proof_hash('PRIVATE_TRANSFER', animal_id);
-            
-            // Crear y guardar proof
-            let transfer_proof = PrivateTransferProof {
-                proof_hash: proof_hash,
-                from_zk: from_zk,
-                to_zk: to_zk,
-                animal_id: animal_id,
-                price_proof: price_proof,
-                timestamp: get_block_timestamp(),
-                verified: true,
-            };
-            
-            self.private_transfer_proofs.write(proof_hash, transfer_proof);
-            
-            // Actualizar contadores
-            self.private_transfers_executed.write(self.private_transfers_executed.read() + 1);
-            
-            self.emit(Event::PrivateTransferExecuted(PrivateTransferExecuted {
-                animal_id: animal_id,
-                proof_hash: proof_hash,
-                from_zk: from_zk,
-                to_zk: to_zk,
-                timestamp: get_block_timestamp(),
-            }));
-            
-            proof_hash
-        }
-        
-        fn get_zec_sale_proof(
-            self: @ContractState,
-            proof_hash: felt252
-        ) -> ZecSaleProof {
-            self.zec_sale_proofs.read(proof_hash)
-        }
-        
-        fn get_price_verification_proof(
-            self: @ContractState,
-            proof_hash: felt252
-        ) -> PriceVerificationProof {
-            self.price_verification_proofs.read(proof_hash)
-        }
-        
-        fn get_private_transfer_proof(
-            self: @ContractState,
-            proof_hash: felt252
-        ) -> PrivateTransferProof {
-            self.private_transfer_proofs.read(proof_hash)
-        }
-        
-        fn link_animal_to_zec_sale(
-            ref self: ContractState,
-            animal_id: u128,
-            zec_sale_proof_hash: felt252
-        ) -> bool {
-            self._check_role(PRODUCER_ROLE);
-            
-            let caller = get_caller_address();
-            let animal = self.animal_data.read(animal_id);
-            
-            assert!(animal.propietario == caller, "Not owner of animal");
-            
-            // Verificar que el proof existe y es válido
-            let zec_proof = self.zec_sale_proofs.read(zec_sale_proof_hash);
-            assert(zec_proof.verified, 'ZEC sale proof not verified');
-            
-            // Vincular animal con proof ZEC
-            self.animal_to_zec_sale.write(animal_id, zec_sale_proof_hash);
-            self.zec_sale_to_animal.write(zec_sale_proof_hash, animal_id);
-            
-            self.emit(Event::AnimalZecLinked(AnimalZecLinked {
-                animal_id: animal_id,
-                zec_sale_proof_hash: zec_sale_proof_hash,
-                owner: caller,
-                timestamp: get_block_timestamp(),
-            }));    
-            
-            true
-        }
-        
-        fn is_animal_zec_verified(
-            self: @ContractState,
-            animal_id: u128
-        ) -> bool {
-            let proof_hash = self.animal_to_zec_sale.read(animal_id);
-            if proof_hash == 0 {
-                return false;
-            }
-            
-            let zec_proof = self.zec_sale_proofs.read(proof_hash);
-            zec_proof.verified
-        }
-        
-        fn get_animal_zec_proof(
-            self: @ContractState,
-            animal_id: u128
-        ) -> felt252 {
-            self.animal_to_zec_sale.read(animal_id)
         }
     }
 }
