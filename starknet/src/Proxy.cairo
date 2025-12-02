@@ -1,22 +1,20 @@
 #[starknet::contract]
 mod Proxy {
-    use starknet::ContractAddress;
-    use starknet::ClassHash;
-    use starknet::get_caller_address;
+    use core::array::{ArrayTrait, SpanTrait};
     use starknet::syscalls::library_call_syscall;
-    use starknet::SyscallResultTrait;
-    use core::array::ArrayTrait;
-    use core::array::SpanTrait;
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
 
     #[storage]
     struct Storage {
         implementation_class: ClassHash,
         admin: ContractAddress,
-        initialized: bool
+        initialized: bool,
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, implementation_class: ClassHash, admin: ContractAddress) {
+    fn constructor(
+        ref self: ContractState, implementation_class: ClassHash, admin: ContractAddress,
+    ) {
         self.initialized.write(true);
         self.implementation_class.write(implementation_class);
         self.admin.write(admin);
@@ -41,7 +39,9 @@ mod Proxy {
     }
 
     #[external(v0)]
-    fn initialize(ref self: ContractState, implementation_class: ClassHash, admin: ContractAddress) {
+    fn initialize(
+        ref self: ContractState, implementation_class: ClassHash, admin: ContractAddress,
+    ) {
         let initialized = self.initialized.read();
         assert(!initialized, 'Already initialized');
         self.initialized.write(true);
@@ -51,32 +51,29 @@ mod Proxy {
 
     // Función para redirigir llamadas a la implementación
     #[external(v0)]
-    fn __default__(self: @ContractState, selector: felt252, calldata: Array<felt252>) -> Span<felt252> {
+    fn __default__(
+        self: @ContractState, selector: felt252, calldata: Array<felt252>,
+    ) -> Span<felt252> {
         let implementation_class = self.implementation_class.read();
-        
+
         // Llamar a la biblioteca con el class hash correcto
-        let result = library_call_syscall(
-            implementation_class,
-            selector,
-            calldata.span()
-        );
-        
+        let result = library_call_syscall(implementation_class, selector, calldata.span());
+
         // Retornar el resultado como Span
         result.unwrap_syscall()
     }
-    
+
     // Función adicional para llamadas que necesitan Array como retorno
     #[external(v0)]
-    fn call_contract(self: @ContractState, selector: felt252, calldata: Array<felt252>) -> Array<felt252> {
+    fn call_contract(
+        self: @ContractState, selector: felt252, calldata: Array<felt252>,
+    ) -> Array<felt252> {
         let implementation_class = self.implementation_class.read();
-        
+
         // Llamar a la biblioteca
-        let result_span = library_call_syscall(
-            implementation_class,
-            selector,
-            calldata.span()
-        ).unwrap_syscall();
-        
+        let result_span = library_call_syscall(implementation_class, selector, calldata.span())
+            .unwrap_syscall();
+
         // Convertir Span a Array
         let mut result_array = ArrayTrait::new();
         let mut i = 0;
@@ -86,8 +83,8 @@ mod Proxy {
             }
             result_array.append(*result_span.at(i));
             i += 1;
-        };
-        
+        }
+
         result_array
     }
 }
