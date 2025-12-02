@@ -1,5 +1,7 @@
-seller_secret = "10"
-buyer_secret = "20"
-animal_id = "42"
-expected_seller = "52"
-expected_buyer = "62"
+seller_zk = 1000
+buyer_zk = 2000  
+amount = 50
+token_id = 1
+sale_nonce = 9999
+seller_sig = 13050
+expected_sale_hash = 3001

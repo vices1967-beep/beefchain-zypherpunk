@@ -1,7 +1,7 @@
 [package]
 name = "price_verification"
 type = "bin"
-authors = ["vices"]
-compiler_version = "0.22"
+authors = []
+compiler_version = "1.0.0"
 
 [dependencies]
