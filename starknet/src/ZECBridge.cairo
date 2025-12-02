@@ -1,8 +1,9 @@
 #[starknet::contract]
 pub mod ZECBridge {
+    use starknet::ContractAddress;
+    use starknet::get_caller_address;
     use core::array::ArrayTrait;
-    use starknet::{ContractAddress, get_caller_address};
-
+    
     #[storage]
     pub struct Storage {
         zec_balances: LegacyMap<ContractAddress, u128>,
@@ -48,61 +49,55 @@ pub mod ZECBridge {
         fn deposit_zec(
             ref self: ContractState,
             zcash_tx_hash: felt252,
-            zcash_address: felt252,
+            zcash_address: felt252, 
             amount: u128,
-            starknet_recipient: ContractAddress,
+            starknet_recipient: ContractAddress
         ) {
             // Solo el admin (oráculo) puede llamar esto
             assert(get_caller_address() == self.bridge_admin.read(), "Only bridge admin");
-
+            
             // Evitar double spending
             assert(!self.deposited_events.read(zcash_tx_hash), "Already processed");
             self.deposited_events.write(zcash_tx_hash, true);
-
+            
             // Mint equivalent tokens en Starknet
             let current_balance = self.zec_balances.read(starknet_recipient);
             self.zec_balances.write(starknet_recipient, current_balance + amount);
             self.total_supply.write(self.total_supply.read() + amount);
-
+            
             let deposit_id = self.next_deposit_id.read();
             self.next_deposit_id.write(deposit_id + 1);
-
-            self
-                .emit(
-                    Event::ZECDeposited(
-                        ZECDeposited {
-                            deposit_id: deposit_id.into(),
-                            from_zcash_address: zcash_address,
-                            amount: amount,
-                            starknet_recipient: starknet_recipient,
-                            timestamp: get_block_timestamp(),
-                        },
-                    ),
-                );
+            
+            self.emit(Event::ZECDeposited(ZECDeposited {
+                deposit_id: deposit_id.into(),
+                from_zcash_address: zcash_address,
+                amount: amount,
+                starknet_recipient: starknet_recipient,
+                timestamp: get_block_timestamp(),
+            }));
         }
 
         // Retirar ZEC de vuelta a Zcash
-        fn withdraw_zec(ref self: ContractState, to_zcash_address: felt252, amount: u128) {
+        fn withdraw_zec(
+            ref self: ContractState,
+            to_zcash_address: felt252,
+            amount: u128
+        ) {
             let caller = get_caller_address();
             let balance = self.zec_balances.read(caller);
-
+            
             assert(balance >= amount, "Insufficient balance");
-
+            
             // Burn tokens
             self.zec_balances.write(caller, balance - amount);
             self.total_supply.write(self.total_supply.read() - amount);
-
-            self
-                .emit(
-                    Event::ZECWithdrawn(
-                        ZECWithdrawn {
-                            to_zcash_address: to_zcash_address,
-                            amount: amount,
-                            starknet_sender: caller,
-                            timestamp: get_block_timestamp(),
-                        },
-                    ),
-                );
+            
+            self.emit(Event::ZECWithdrawn(ZECWithdrawn {
+                to_zcash_address: to_zcash_address,
+                amount: amount,
+                starknet_sender: caller,
+                timestamp: get_block_timestamp(),
+            }));
         }
 
         fn get_balance(self: @ContractState, account: ContractAddress) -> u128 {
@@ -121,11 +116,15 @@ pub mod ZECBridge {
             zcash_tx_hash: felt252,
             zcash_address: felt252,
             amount: u128,
-            starknet_recipient: ContractAddress,
+            starknet_recipient: ContractAddress
         );
-
-        fn withdraw_zec(ref self: TContractState, to_zcash_address: felt252, amount: u128);
-
+        
+        fn withdraw_zec(
+            ref self: TContractState,
+            to_zcash_address: felt252,
+            amount: u128
+        );
+        
         fn get_balance(self: @TContractState, account: ContractAddress) -> u128;
         fn get_total_supply(self: @TContractState) -> u128;
     }
