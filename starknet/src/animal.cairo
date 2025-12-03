@@ -320,6 +320,7 @@ pub mod Animal {
     component!(path: GaragaProofsComponent, storage: garaga_proofs, event: GaragaProofsEvent);
 
     #[storage]
+    #[allow(starknet::colliding_storage_paths)]
     pub struct Storage {
         #[substorage(v0)]
         animal_core: AnimalCoreComponent::Storage,

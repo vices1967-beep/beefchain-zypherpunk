@@ -89,3 +89,4 @@ pub struct PrivateTransferProof {
     /// Whether proof has been verified
     pub verified: bool,
 }
+

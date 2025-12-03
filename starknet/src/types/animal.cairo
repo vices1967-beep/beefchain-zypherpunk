@@ -1,15 +1,15 @@
 /// @title Animal Data Types
 /// @notice Core data structures for animal NFT tracking
 /// @dev Contains all structs related to individual animal management and metadata
+/// IMPORTANT: ALL field names are in ENGLISH for consistency across components
 
 use starknet::ContractAddress;
 
 /// @notice Core animal metadata and state
 /// @dev Stores essential information about each animal in the supply chain.
-/// The animal progresses through states: Created (0) -> Processed (1) -> Certified (2) -> Exported
-/// (3)
+/// The animal progresses through states: Created (0) -> Processed (1) -> Certified (2) -> Exported (3)
 ///
-/// Fields explanation:
+/// Fields explanation (ENGLISH names for component consistency):
 /// - breed: Breed identifier (e.g., Angus = 1, Hereford = 2)
 /// - birth_date: Birth date as Unix timestamp
 /// - weight: Current weight in kilograms
@@ -41,6 +41,30 @@ pub struct AnimalData {
     pub batch_id: u128,
 }
 
+/// @notice Represents a batch of animals from producer to processing facility
+/// @dev Batch allows efficient transfer of multiple animals together
+/// Tracks movement from producer -> processing_facility -> processing
+/// ENGLISH field names for component consistency
+#[derive(Drop, Copy, Serde, starknet::Store)]
+pub struct AnimalBatchData {
+    /// Original owner (producer)
+    pub owner: ContractAddress,
+    /// Processing facility destination
+    pub processing_facility: ContractAddress,
+    /// When batch was created
+    pub creation_date: u64,
+    /// When batch was transferred to processing facility
+    pub transfer_date: u64,
+    /// When batch processing was completed
+    pub processing_date: u64,
+    /// Status: 0=Created, 1=Transferred, 2=Processed
+    pub status: u8,
+    /// Number of animals in batch
+    pub animal_count: u32,
+    /// Total weight of all animals in batch
+    pub total_weight: u128,
+}
+
 /// @notice Represents a meat cut from a processed animal
 /// @dev Created when processing facility processes an animal into cuts
 /// Each animal can have multiple cuts for different market purposes
@@ -62,29 +86,6 @@ pub struct MeatCutData {
     pub owner: ContractAddress,
     /// Original animal this cut came from
     pub animal_id: u128,
-}
-
-/// @notice Represents a batch of animals from producer to processing facility
-/// @dev Batch allows efficient transfer of multiple animals together
-/// Tracks movement from producer -> processing_facility -> processing
-#[derive(Drop, Copy, Serde, starknet::Store)]
-pub struct AnimalBatchData {
-    /// Original owner (producer)
-    pub owner: ContractAddress,
-    /// Processing facility destination
-    pub processing_facility: ContractAddress,
-    /// When batch was created
-    pub creation_date: u64,
-    /// When batch was transferred to processing facility
-    pub transfer_date: u64,
-    /// When batch processing was completed
-    pub processing_date: u64,
-    /// Status: 0=Created, 1=Transferred, 2=Processed
-    pub status: u8,
-    /// Number of animals in batch
-    pub animal_count: u32,
-    /// Total weight of all animals in batch
-    pub total_weight: u128,
 }
 
 /// @notice IoT sensor readings for environmental monitoring
@@ -150,3 +151,4 @@ pub struct PriceRange {
     /// Maximum acceptable price
     pub max_price: u128,
 }
+

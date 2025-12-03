@@ -25,6 +25,25 @@ use core::array::Array;
 use starknet::ContractAddress;
 use crate::types::animal::AnimalData;
 
+// Import interfaces from other components
+use crate::components::access_control::IAccessControlComponentDispatcher;
+use crate::components::health::IHealthComponentDispatcher;
+use crate::components::privacy::IPrivacyComponentDispatcher;
+use crate::components::processing::IProcessingComponentDispatcher;
+use crate::components::certification::ICertificationComponentDispatcher;
+use crate::components::export::IExportComponentDispatcher;
+
+/// Role constants for access control (English names)
+/// @dev These must match the roles defined in AccessControlComponent
+const DEFAULT_ADMIN_ROLE: felt252 = 0;
+const PRODUCER_ROLE: felt252 = 'PRODUCER_ROLE';
+const PROCESSING_FACILITY_ROLE: felt252 = 'PROCESSING_FACILITY_ROLE';
+const VETERINARIAN_ROLE: felt252 = 'VETERINARIAN_ROLE';
+const IOT_ROLE: felt252 = 'IOT_ROLE';
+const CERTIFIER_ROLE: felt252 = 'CERTIFIER_ROLE';
+const EXPORTER_ROLE: felt252 = 'EXPORTER_ROLE';
+const AUDITOR_ROLE: felt252 = 'AUDITOR_ROLE';
+
 /// @title IAnimalCore
 /// @notice Trait defining core animal NFT operations
 #[starknet::interface]
@@ -38,12 +57,15 @@ pub trait IAnimalCore<TContractState> {
     /// @param weight Initial weight in kilograms
     /// @return animal_id The newly created animal's unique ID
     /// @dev Emits AnimalCreated event
+    /// Caller must have PRODUCER_ROLE
     /// Caller becomes the owner
     /// Storage updates:
     /// - Increments next_token_id
     /// - Creates animal_data entry
     /// - Sets token_owner
     /// - Adds to animals_by_owner index
+    /// - Initializes animal_cuts to 0
+    /// - Creates qr_data entry
     fn create_animal(
         ref self: TContractState,
         metadata_hash: felt252,
@@ -58,6 +80,8 @@ pub trait IAnimalCore<TContractState> {
     /// @dev Simplified version with default values
     /// Uses current timestamp as birth date
     /// Default weight of 250kg
+    /// Uses fixed metadata hash 'simple_animal_v1'
+    /// Caller must have PRODUCER_ROLE
     fn create_animal_simple(ref self: TContractState, breed: u128) -> u128;
 
     // ============ WEIGHT MANAGEMENT ============
@@ -113,13 +137,13 @@ pub trait IAnimalCore<TContractState> {
     /// @notice Get the number of meat cuts from an animal
     /// @param animal_id The animal ID
     /// @return u128 Number of cuts created (0 if not processed)
-    /// @dev This is stored in processing component but queried through core
+    /// @dev Reads from animal_cuts storage
     fn get_num_meat_cuts(self: @TContractState, animal_id: u128) -> u128;
 
     /// @notice Check if an animal is quarantined
     /// @param animal_id The animal ID
     /// @return bool True if animal is in quarantine
-    /// @dev Delegates to HealthComponent
+    /// @dev Delegates to HealthComponent if connected, otherwise returns false
     fn is_quarantined(self: @TContractState, animal_id: u128) -> bool;
 
     // ============ QUERIES - PRODUCER/OWNER ============
@@ -135,7 +159,6 @@ pub trait IAnimalCore<TContractState> {
     /// - animal_count: Number of animals owned
     /// - batch_count: Number of batches created
     /// - total_weight: Sum of all animal weights
-    /// @dev TODO: Replace the tuple with an `OwnerStatistics` struct once we align shared types.
     fn get_owner_statistics(self: @TContractState, producer: ContractAddress) -> (u32, u32, u128);
 
     // ============ SYSTEM STATISTICS ============
@@ -143,19 +166,17 @@ pub trait IAnimalCore<TContractState> {
     /// @notice Get overall system statistics
     /// @return (total_animals, total_batches, total_cuts, processed_count, next_token_id,
     /// next_batch_id, next_lote_id)
-    /// @dev TODO: Wrap the return values in a `SystemStatistics` struct for clarity later.
     fn get_system_statistics(self: @TContractState) -> (u128, u128, u128, u128, u128, u128, u128);
 
     /// @notice Get role membership statistics
     /// @return (producers_count, processors_count, vets_count, iot_count, certifiers_count,
     /// exporters_count, auditors_count)
-    /// @dev TODO: Consider replacing this tuple with a `RoleStatistics` struct or record of named
-    /// counts.
     fn get_role_statistics(self: @TContractState) -> (u32, u32, u32, u32, u32, u32, u32);
 
     /// @notice Update an animal's status in storage
     /// @param animal_id Target animal
     /// @param status New status value (0=Created, 1=Processed, 2=Certified, 3=Exported)
+    /// @dev Internal function called by other components during state transitions
     fn set_animal_status(ref self: TContractState, animal_id: u128, status: u8);
 }
 
@@ -169,6 +190,17 @@ pub mod AnimalCoreComponent {
     use starknet::storage::Map;
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use super::AnimalData;
+    use super::{
+        DEFAULT_ADMIN_ROLE, PRODUCER_ROLE, PROCESSING_FACILITY_ROLE, VETERINARIAN_ROLE, 
+        IOT_ROLE, CERTIFIER_ROLE, EXPORTER_ROLE, AUDITOR_ROLE
+    };
+    
+    // Import dispatcher traits
+    use super::{
+        IAccessControlComponentDispatcher, IHealthComponentDispatcher, 
+        IPrivacyComponentDispatcher, IProcessingComponentDispatcher,
+        ICertificationComponentDispatcher, IExportComponentDispatcher
+    };
 
     // ============ STORAGE ============
 
@@ -180,8 +212,12 @@ pub mod AnimalCoreComponent {
         token_owner: Map<u128, ContractAddress>,
         /// Mapping: animal_id -> metadata URI
         token_uri: Map<u128, felt252>,
-        /// Mapping: animal_id -> full animal data
+        /// Mapping: animal_id -> full animal data (English field names)
         animal_data: Map<u128, AnimalData>,
+        /// Number of cuts per animal
+        animal_cuts: Map<u128, u128>,
+        /// QR data hash for each animal
+        qr_data: Map<u128, felt252>,
         /// Mapping: (owner, index) -> animal_id
         /// Used to list all animals owned by an address
         animals_by_owner_count: Map<ContractAddress, u32>,
@@ -192,7 +228,21 @@ pub mod AnimalCoreComponent {
         /// System-wide statistics
         total_animals_created: u128,
         total_batches_created: u128,
-        total_meat_cuts_created: u128,
+        total_cuts_created: u128,
+
+        // ============ COMPONENT REFERENCES ============
+        /// Reference to AccessControlComponent for role checks
+        access_control_component: Map<u32, ContractAddress>,
+        /// Reference to PrivacyComponent for privacy initialization
+        privacy_component: Map<u32, ContractAddress>,
+        /// Reference to HealthComponent for quarantine status
+        health_component: Map<u32, ContractAddress>,
+        /// Reference to ProcessingComponent for batch info
+        processing_component: Map<u32, ContractAddress>,
+        /// Reference to CertificationComponent for certification status
+        certification_component: Map<u32, ContractAddress>,
+        /// Reference to ExportComponent for export info
+        export_component: Map<u32, ContractAddress>,
     }
 
     // ============ EVENTS ============
@@ -203,6 +253,7 @@ pub mod AnimalCoreComponent {
         AnimalCreated: AnimalCreated,
         AnimalTransferred: AnimalTransferred,
         AnimalWeightUpdated: AnimalWeightUpdated,
+        ComponentLinked: ComponentLinked,
     }
 
     /// @notice Emitted when a new animal is created
@@ -231,6 +282,7 @@ pub mod AnimalCoreComponent {
         pub from: ContractAddress,
         /// New owner
         pub to: ContractAddress,
+        /// Transfer type identifier
         pub transfer_type: felt252,
         /// When transfer occurred
         pub timestamp: u64,
@@ -249,6 +301,16 @@ pub mod AnimalCoreComponent {
         pub timestamp: u64,
     }
 
+    /// @notice Emitted when a component is linked to AnimalCore
+    #[derive(Drop, starknet::Event)]
+    pub struct ComponentLinked {
+        /// Component type identifier
+        pub component_type: felt252,
+        /// Contract address of the component
+        pub component_address: ContractAddress,
+        /// Timestamp of linking
+        pub timestamp: u64,
+    }
 
     // ============ EXTERNAL FUNCTIONS ============
 
@@ -263,14 +325,18 @@ pub mod AnimalCoreComponent {
             birth_date: u64,
             weight: u128,
         ) -> u128 {
-            let caller = get_caller_address();
-            let animal_id = self.next_token_id.read();
+            // Check if caller has PRODUCER_ROLE using AccessControlComponent
+            _check_role(ref self, PRODUCER_ROLE);
 
+            let animal_id = self.next_token_id.read();
             self.next_token_id.write(animal_id + 1);
+
+            let caller = get_caller_address();
             self.token_owner.write(animal_id, caller);
             self.token_uri.write(animal_id, metadata_hash);
 
             let zero_address: ContractAddress = 0.try_into().unwrap();
+
             let animal = AnimalData {
                 breed: breed,
                 birth_date: birth_date,
@@ -283,15 +349,32 @@ pub mod AnimalCoreComponent {
                 batch_id: 0,
             };
             self.animal_data.write(animal_id, animal);
+            
+            // Initialize cuts counter to 0
+            self.animal_cuts.write(animal_id, 0);
+            
+            // Create and store QR hash
+            let qr_hash = metadata_hash + animal_id.into();
+            self.qr_data.write(animal_id, qr_hash);
 
-            let owner_count = self.animals_by_owner_count.read(caller);
-            self.animal_at_owner_index.write((caller, owner_count), animal_id);
-            self.animals_by_owner_count.write(caller, owner_count + 1);
+            // Initialize privacy data if PrivacyComponent is linked
+            let privacy_component_addr = self.privacy_component.read(0);
+            if privacy_component_addr != zero_address {
+                let privacy_dispatcher = IPrivacyComponentDispatcher {
+                    contract_address: privacy_component_addr
+                };
+                privacy_dispatcher.initialize_privacy_data(animal_id, caller);
+            }
 
+            // Add to owner's animal index using helper function
+            _add_animal_to_owner(ref self, caller, animal_id);
+
+            // Update system statistics
             self.total_animals_created.write(self.total_animals_created.read() + 1);
             self.transfer_count.write(animal_id, 0);
             self.last_transfer_time.write(animal_id, get_block_timestamp());
 
+            // Emit creation event
             self
                 .emit(
                     Event::AnimalCreated(
@@ -310,8 +393,14 @@ pub mod AnimalCoreComponent {
         }
 
         fn create_animal_simple(ref self: ComponentState<TContractState>, breed: u128) -> u128 {
+            // Check if caller has PRODUCER_ROLE using AccessControlComponent
+            _check_role(ref self, PRODUCER_ROLE);
+
             let timestamp = get_block_timestamp();
-            let metadata_hash = timestamp.into();
+            // Use fixed metadata hash
+            let metadata_hash = 'simple_animal_v1';
+            
+            // Call create_animal with simplified parameters
             self.create_animal(metadata_hash, breed, timestamp, 250)
         }
 
@@ -320,6 +409,8 @@ pub mod AnimalCoreComponent {
         ) {
             let caller = get_caller_address();
             let mut animal = self.animal_data.read(animal_id);
+            
+            // Validate ownership and state
             assert!(animal.owner == caller, "NOT_OWNER");
             assert!(animal.status == 0, "ALREADY_PROCESSED");
 
@@ -345,7 +436,15 @@ pub mod AnimalCoreComponent {
         ) {
             let caller = get_caller_address();
             let animal = self.animal_data.read(animal_id);
+            
+            // Validate ownership
             assert!(animal.owner == caller, "NOT_OWNER");
+            
+            // Check if animal is quarantined using HealthComponent
+            if _is_animal_quarantined(ref self, animal_id) {
+                assert!(false, "ANIMAL_QUARANTINED");
+            }
+            
             _validate_transfer_conditions(ref self, animal_id);
             _transfer_animal_internal(ref self, animal_id, caller, to);
 
@@ -356,7 +455,7 @@ pub mod AnimalCoreComponent {
                             animal_id: animal_id,
                             from: caller,
                             to: to,
-                            transfer_type: 'DIRECT',
+                            transfer_type: 'STANDARD_TRANSFER',
                             timestamp: get_block_timestamp(),
                         },
                     ),
@@ -370,7 +469,22 @@ pub mod AnimalCoreComponent {
         ) {
             let caller = get_caller_address();
             let animal = self.animal_data.read(animal_id);
+            
+            // Validate ownership
             assert!(animal.owner == caller, "NOT_OWNER");
+            
+            // Check if caller has PRODUCER_ROLE using AccessControlComponent
+            _check_role(ref self, PRODUCER_ROLE);
+            
+            // Check if recipient has PROCESSING_FACILITY_ROLE using AccessControlComponent
+            let has_facility_role = _check_role_for_address(ref self, processing_facility, PROCESSING_FACILITY_ROLE);
+            assert!(has_facility_role, "RECIPIENT_DOES_NOT_HAVE_PROCESSING_FACILITY_ROLE");
+            
+            // Check if animal is quarantined using HealthComponent
+            if _is_animal_quarantined(ref self, animal_id) {
+                assert!(false, "ANIMAL_QUARANTINED");
+            }
+            
             _validate_transfer_conditions(ref self, animal_id);
             _transfer_animal_internal(ref self, animal_id, caller, processing_facility);
 
@@ -381,7 +495,7 @@ pub mod AnimalCoreComponent {
                             animal_id: animal_id,
                             from: caller,
                             to: processing_facility,
-                            transfer_type: 'TO_FACILITY',
+                            transfer_type: 'PRODUCER_TO_FACILITY',
                             timestamp: get_block_timestamp(),
                         },
                     ),
@@ -401,11 +515,12 @@ pub mod AnimalCoreComponent {
         }
 
         fn get_num_meat_cuts(self: @ComponentState<TContractState>, animal_id: u128) -> u128 {
-            0
+            // Direct read from storage
+            self.animal_cuts.read(animal_id)
         }
 
         fn is_quarantined(self: @ComponentState<TContractState>, animal_id: u128) -> bool {
-            false
+            _is_animal_quarantined(self, animal_id)
         }
 
         fn get_animals_by_owner(
@@ -427,37 +542,107 @@ pub mod AnimalCoreComponent {
         fn get_owner_statistics(
             self: @ComponentState<TContractState>, producer: ContractAddress,
         ) -> (u32, u32, u128) {
-            // TODO: Return an OwnerStatistics struct with named fields once it's defined.
             let animals_count = self.animals_by_owner_count.read(producer);
-            (animals_count, 0, 0)
+            
+            // Calculate total weight for this producer
+            let mut total_weight: u128 = 0;
+            let count = animals_count;
+            let mut i: u32 = 0;
+            
+            while i < count {
+                let animal_id = self.animal_at_owner_index.read((producer, i));
+                let animal = self.animal_data.read(animal_id);
+                total_weight += animal.weight;
+                i += 1;
+            };
+            
+            // Get batch count from ProcessingComponent if connected
+            let mut batch_count: u32 = 0;
+            let processing_component_addr = self.processing_component.read(0);
+            let zero_address: ContractAddress = 0.try_into().unwrap();
+            
+            if processing_component_addr != zero_address {
+                let processing_dispatcher = IProcessingComponentDispatcher {
+                    contract_address: processing_component_addr
+                };
+                let batches = processing_dispatcher.get_batches_by_owner(producer);
+                batch_count = batches.len();
+            }
+            
+            (animals_count, batch_count, total_weight)
         }
 
         fn get_system_statistics(
             self: @ComponentState<TContractState>,
         ) -> (u128, u128, u128, u128, u128, u128, u128) {
-            // TODO: Wrap these metrics in a SystemStatistics struct instead of returning raw
-            // integers.
             let total_animals = self.total_animals_created.read();
             let total_batches = self.total_batches_created.read();
-            let total_cuts = self.total_meat_cuts_created.read();
+            let total_cuts = self.total_cuts_created.read();
+            let next_token_id = self.next_token_id.read();
+            
+            // Count processed animals
             let mut processed: u128 = 0;
-            let next_id = self.next_token_id.read();
-            let mut i: u128 = 1;
-            while i >= next_id {
-                let animal = self.animal_data.read(i);
-                if animal.status >= 1 {
-                    processed += 1;
-                }
-                i += 1;
-            };
-
-            (total_animals, total_batches, total_cuts, processed, next_id, 0, 0)
+            if next_token_id > 1 {
+                let mut i: u128 = 1;
+                while i < next_token_id {
+                    let animal = self.animal_data.read(i);
+                    if animal.status >= 1 {
+                        processed += 1;
+                    }
+                    i += 1;
+                };
+            }
+            
+            // Get next_batch_id from ProcessingComponent if connected
+            let mut next_batch_id: u128 = 0;
+            let processing_component_addr = self.processing_component.read(0);
+            let zero_address: ContractAddress = 0.try_into().unwrap();
+            
+            if processing_component_addr != zero_address {
+                // ProcessingComponent doesn't expose next_batch_id directly
+                // We'll need to track this separately or estimate
+                // For now, use the stored total_batches_created + 1 as estimate
+                next_batch_id = total_batches + 1;
+            }
+            
+            // Get next_lote_id from ExportComponent if connected
+            let mut next_lote_id: u128 = 0;
+            let export_component_addr = self.export_component.read(0);
+            
+            if export_component_addr != zero_address {
+                // ExportComponent doesn't expose next_lote_id directly
+                // We'll need to track this separately
+                // For now, return 0
+                next_lote_id = 0;
+            }
+            
+            (total_animals, total_batches, total_cuts, processed, next_token_id, next_batch_id, next_lote_id)
         }
 
         fn get_role_statistics(
             self: @ComponentState<TContractState>,
         ) -> (u32, u32, u32, u32, u32, u32, u32) {
-            // TODO: Provide a RoleStatistics struct or map to describe each count later.
+            // Query AccessControlComponent for actual role counts if connected
+            let access_control_addr = self.access_control_component.read(0);
+            let zero_address: ContractAddress = 0.try_into().unwrap();
+            
+            if access_control_addr != zero_address {
+                let access_control_dispatcher = IAccessControlComponentDispatcher {
+                    contract_address: access_control_addr
+                };
+                
+                let producers = access_control_dispatcher.get_role_member_count(PRODUCER_ROLE);
+                let processors = access_control_dispatcher.get_role_member_count(PROCESSING_FACILITY_ROLE);
+                let vets = access_control_dispatcher.get_role_member_count(VETERINARIAN_ROLE);
+                let iot = access_control_dispatcher.get_role_member_count(IOT_ROLE);
+                let certifiers = access_control_dispatcher.get_role_member_count(CERTIFIER_ROLE);
+                let exporters = access_control_dispatcher.get_role_member_count(EXPORTER_ROLE);
+                let auditors = access_control_dispatcher.get_role_member_count(AUDITOR_ROLE);
+                
+                return (producers, processors, vets, iot, certifiers, exporters, auditors);
+            }
+            
+            // Return zeros if AccessControlComponent is not linked
             (0, 0, 0, 0, 0, 0, 0)
         }
 
@@ -469,6 +654,8 @@ pub mod AnimalCoreComponent {
             self.animal_data.write(animal_id, animal);
         }
     }
+
+    // ============ INTERNAL FUNCTIONS ============
 
     fn _transfer_animal_internal<TContractState>(
         ref self: ComponentState<TContractState>,
@@ -519,5 +706,216 @@ pub mod AnimalCoreComponent {
         let animal = self.animal_data.read(animal_id);
         let zero_address: ContractAddress = 0.try_into().unwrap();
         assert!(animal.owner != zero_address, "ANIMAL_NOT_FOUND");
+    }
+
+    // ============ INTEGRATED COMPONENT FUNCTIONS ============
+
+    /// @notice Check if caller has a specific role using AccessControlComponent
+    fn _check_role<TContractState>(
+        ref self: ComponentState<TContractState>,
+        role: felt252
+    ) {
+        let access_control_addr = self.access_control_component.read(0);
+        let zero_address: ContractAddress = 0.try_into().unwrap();
+        
+        if access_control_addr != zero_address {
+            let access_control_dispatcher = IAccessControlComponentDispatcher {
+                contract_address: access_control_addr
+            };
+            
+            let caller = get_caller_address();
+            let has_role = access_control_dispatcher.has_role(role, caller);
+            assert!(has_role, "CALLER_DOES_NOT_HAVE_REQUIRED_ROLE");
+        } else {
+            // If AccessControlComponent is not linked, revert for safety
+            assert!(false, "ACCESS_CONTROL_COMPONENT_NOT_LINKED");
+        }
+    }
+
+    /// @notice Check if a specific address has a role using AccessControlComponent
+    fn _check_role_for_address<TContractState>(
+        ref self: ComponentState<TContractState>,
+        address: ContractAddress,
+        role: felt252
+    ) -> bool {
+        let access_control_addr = self.access_control_component.read(0);
+        let zero_address: ContractAddress = 0.try_into().unwrap();
+        
+        if access_control_addr != zero_address {
+            let access_control_dispatcher = IAccessControlComponentDispatcher {
+                contract_address: access_control_addr
+            };
+            
+            return access_control_dispatcher.has_role(role, address);
+        }
+        
+        // If AccessControlComponent is not linked, return false for safety
+        false
+    }
+
+    /// @notice Check if an animal is quarantined using HealthComponent
+    fn _is_animal_quarantined<TContractState>(
+        self: @ComponentState<TContractState>,
+        animal_id: u128
+    ) -> bool {
+        let health_component_addr = self.health_component.read(0);
+        let zero_address: ContractAddress = 0.try_into().unwrap();
+        
+        if health_component_addr != zero_address {
+            let health_dispatcher = IHealthComponentDispatcher {
+                contract_address: health_component_addr
+            };
+            
+            return health_dispatcher.is_quarantined(animal_id);
+        }
+        
+        // If HealthComponent is not linked, return false
+        false
+    }
+
+    /// @notice Add animal to owner's index
+    fn _add_animal_to_owner<TContractState>(
+        ref self: ComponentState<TContractState>,
+        owner: ContractAddress,
+        animal_id: u128
+    ) {
+        let count = self.animals_by_owner_count.read(owner);
+        self.animal_at_owner_index.write((owner, count), animal_id);
+        self.animals_by_owner_count.write(owner, count + 1);
+    }
+
+    // ============ COMPONENT LINKING FUNCTIONS ============
+
+    /// @notice Link AccessControlComponent to AnimalCoreComponent
+    fn _link_access_control_component<TContractState>(
+        ref self: ComponentState<TContractState>,
+        component_address: ContractAddress
+    ) {
+        self.access_control_component.write(0, component_address);
+        
+        self
+            .emit(
+                Event::ComponentLinked(
+                    ComponentLinked {
+                        component_type: 'ACCESS_CONTROL',
+                        component_address: component_address,
+                        timestamp: get_block_timestamp(),
+                    },
+                ),
+            );
+    }
+
+    /// @notice Link PrivacyComponent to AnimalCoreComponent
+    fn _link_privacy_component<TContractState>(
+        ref self: ComponentState<TContractState>,
+        component_address: ContractAddress
+    ) {
+        self.privacy_component.write(0, component_address);
+        
+        self
+            .emit(
+                Event::ComponentLinked(
+                    ComponentLinked {
+                        component_type: 'PRIVACY',
+                        component_address: component_address,
+                        timestamp: get_block_timestamp(),
+                    },
+                ),
+            );
+    }
+
+    /// @notice Link HealthComponent to AnimalCoreComponent
+    fn _link_health_component<TContractState>(
+        ref self: ComponentState<TContractState>,
+        component_address: ContractAddress
+    ) {
+        self.health_component.write(0, component_address);
+        
+        self
+            .emit(
+                Event::ComponentLinked(
+                    ComponentLinked {
+                        component_type: 'HEALTH',
+                        component_address: component_address,
+                        timestamp: get_block_timestamp(),
+                    },
+                ),
+            );
+    }
+
+    /// @notice Link ProcessingComponent to AnimalCoreComponent
+    fn _link_processing_component<TContractState>(
+        ref self: ComponentState<TContractState>,
+        component_address: ContractAddress
+    ) {
+        self.processing_component.write(0, component_address);
+        
+        self
+            .emit(
+                Event::ComponentLinked(
+                    ComponentLinked {
+                        component_type: 'PROCESSING',
+                        component_address: component_address,
+                        timestamp: get_block_timestamp(),
+                    },
+                ),
+            );
+    }
+
+    /// @notice Link CertificationComponent to AnimalCoreComponent
+    fn _link_certification_component<TContractState>(
+        ref self: ComponentState<TContractState>,
+        component_address: ContractAddress
+    ) {
+        self.certification_component.write(0, component_address);
+        
+        self
+            .emit(
+                Event::ComponentLinked(
+                    ComponentLinked {
+                        component_type: 'CERTIFICATION',
+                        component_address: component_address,
+                        timestamp: get_block_timestamp(),
+                    },
+                ),
+            );
+    }
+
+    /// @notice Link ExportComponent to AnimalCoreComponent
+    fn _link_export_component<TContractState>(
+        ref self: ComponentState<TContractState>,
+        component_address: ContractAddress
+    ) {
+        self.export_component.write(0, component_address);
+        
+        self
+            .emit(
+                Event::ComponentLinked(
+                    ComponentLinked {
+                        component_type: 'EXPORT',
+                        component_address: component_address,
+                        timestamp: get_block_timestamp(),
+                    },
+                ),
+            );
+    }
+
+    /// @notice Check if a component is linked
+    fn _is_component_linked<TContractState>(
+        self: @ComponentState<TContractState>,
+        component_key: u32
+    ) -> bool {
+        let component_addr = match component_key {
+            0 => self.access_control_component.read(0),
+            1 => self.privacy_component.read(0),
+            2 => self.health_component.read(0),
+            3 => self.processing_component.read(0),
+            4 => self.certification_component.read(0),
+            5 => self.export_component.read(0),
+            _ => 0.try_into().unwrap(),
+        };
+        
+        let zero_address: ContractAddress = 0.try_into().unwrap();
+        component_addr != zero_address
     }
 }
