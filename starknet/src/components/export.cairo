@@ -109,7 +109,7 @@ pub mod ExportComponent {
                 self.animal_export_batch.write(animal_id, batch_id);
                 count += 1;
                 index += 1;
-            }
+            };
 
             self.batch_animals_count.write(batch_id, count);
 

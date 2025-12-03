@@ -156,7 +156,7 @@ pub mod ProcessingComponent {
                 self.animals_in_batch.write((batch_id, animal_id), true);
                 animal_count += 1;
                 index += 1;
-            }
+            };
 
             let zero_address: ContractAddress = 0.try_into().unwrap();
             let batch_data = AnimalBatchData {
@@ -204,7 +204,7 @@ pub mod ProcessingComponent {
                 self.animals_in_batch.write((batch_id, animal_id), true);
                 animal_count += 1;
                 index += 1;
-            }
+            };
             self.batch_animal_count.write(batch_id, animal_count);
         }
 
@@ -248,7 +248,7 @@ pub mod ProcessingComponent {
                 let animal_id = self.batch_animals_by_index.read((batch_id, index));
                 animal_ids.append(animal_id);
                 index += 1;
-            }
+            };
             (batch_data, animal_ids)
         }
 
@@ -348,9 +348,9 @@ pub mod ProcessingComponent {
                     created_cuts.append(cut_id);
                     total_cuts += 1;
                     j += 1;
-                }
+                };
                 i += 1;
-            }
+            };
 
             self
                 .emit(
@@ -384,7 +384,7 @@ pub mod ProcessingComponent {
                 let batch_id = self.batch_at_owner_index.read((owner, index));
                 batches.append(batch_id);
                 index += 1;
-            }
+            };
 
             batches
         }
@@ -400,7 +400,7 @@ pub mod ProcessingComponent {
                 let animal_id = self.batch_animals_by_index.read((batch_id, index));
                 animals.append(animal_id);
                 index += 1;
-            }
+            };
 
             animals
         }

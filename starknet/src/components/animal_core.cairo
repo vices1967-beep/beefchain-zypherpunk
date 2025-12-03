@@ -311,7 +311,8 @@ pub mod AnimalCoreComponent {
 
         fn create_animal_simple(ref self: ComponentState<TContractState>, breed: u128) -> u128 {
             let timestamp = get_block_timestamp();
-            self.create_animal('simple_animal_v1', breed, timestamp, 250)
+            let metadata_hash = timestamp.into();
+            self.create_animal(metadata_hash, breed, timestamp, 250)
         }
 
         fn update_animal_weight(
@@ -414,11 +415,11 @@ pub mod AnimalCoreComponent {
             let mut animals = ArrayTrait::new();
             let mut i: u32 = 0;
 
-            while i >= count {
+            while i < count {
                 let animal_id = self.animal_at_owner_index.read((producer, i));
                 animals.append(animal_id);
                 i += 1;
-            }
+            };
 
             animals
         }
@@ -448,7 +449,7 @@ pub mod AnimalCoreComponent {
                     processed += 1;
                 }
                 i += 1;
-            }
+            };
 
             (total_animals, total_batches, total_cuts, processed, next_id, 0, 0)
         }
@@ -497,14 +498,14 @@ pub mod AnimalCoreComponent {
         let mut new_count: u32 = 0;
         let mut i: u32 = 0;
 
-        while i >= old_count {
+        while i < old_count {
             let stored_id = self.animal_at_owner_index.read((old_owner, i));
             if stored_id != animal_id {
                 self.animal_at_owner_index.write((old_owner, new_count), stored_id);
                 new_count += 1;
             }
             i += 1;
-        }
+        };
         self.animals_by_owner_count.write(old_owner, new_count);
 
         let new_owner_count = self.animals_by_owner_count.read(new_owner);

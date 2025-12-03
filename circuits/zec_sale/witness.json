@@ -1,0 +1,9 @@
+{
+  "seller_zk": 291,
+  "buyer_zk": 1110,
+  "amount": 100,
+  "token_id": 1,
+  "sale_nonce": 1929,
+  "seller_sig": 3431,
+  "expected_sale_hash": 1402
+}

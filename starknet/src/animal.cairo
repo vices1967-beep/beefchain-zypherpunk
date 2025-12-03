@@ -513,7 +513,7 @@ pub mod Animal {
                 assert!(!self.health.is_quarantined(animal_id), "Animal in quarantine");
                 self.animal_core.set_animal_status(animal_id, 2);
                 index += 1;
-            }
+            };
             self.certification.certify_batch(batch_id, animal_ids, certification_data);
         }
 
@@ -574,7 +574,7 @@ pub mod Animal {
                 let animal_id = *animal_ids.at(index);
                 assert!(self.certification.is_animal_certified(animal_id), "Animal not certified");
                 index += 1;
-            }
+            };
 
             self.export.prepare_export_batch(animal_ids, destination_country, container_id)
         }
@@ -630,7 +630,7 @@ pub mod Animal {
                         self.processing.transfer_cut(animal_id, cut_id, caller, exporter);
                     }
                     cut_id += 1;
-                }
+                };
                 i += 1;
             }
         }
@@ -1018,7 +1018,7 @@ pub mod Animal {
                 let event = self.audit_analytics.animal_history_at_index.read((animal_id, index));
                 history.append(event);
                 index += 1;
-            }
+            };
             history
         }
 
@@ -1035,7 +1035,7 @@ pub mod Animal {
                     .read((animal_id, cut_id, index));
                 history.append(event);
                 index += 1;
-            }
+            };
             history
         }
 
@@ -1047,7 +1047,7 @@ pub mod Animal {
                 let event = self.audit_analytics.batch_audit_at_index.read((batch_id, index));
                 audit_trail.append(event);
                 index += 1;
-            }
+            };
             audit_trail
         }
 
@@ -1112,7 +1112,7 @@ pub mod Animal {
                 }
 
                 index += 1;
-            }
+            };
 
             if count > 0 {
                 total_eff / count

@@ -28,3 +28,30 @@ fn main(
     
     result
 }
+#[test]
+fn test_valid_sale() {
+    let seller_zk = 0x123;
+    let buyer_zk = 0x456;
+    let amount = 0x64;
+    let token_id = 0x1;
+    let sale_nonce = 0x789;
+    let seller_sig = 0xD67;  // 0x123 + 0x456 + 0x64 + 0x1 + 0x789
+    let expected_sale_hash = 0x57A;  // 0x123 + 0x456 + 0x1
+    
+    let result = main(seller_zk, buyer_zk, amount, token_id, sale_nonce, seller_sig, expected_sale_hash);
+    assert(result == 1);
+}
+
+#[test]  
+fn test_invalid_signature() {
+    let seller_zk = 0x123;
+    let buyer_zk = 0x456;
+    let amount = 0x64;
+    let token_id = 0x1;
+    let sale_nonce = 0x789;
+    let seller_sig = 0x0;  // Firma incorrecta
+    let expected_sale_hash = 0x57A;
+    
+    let result = main(seller_zk, buyer_zk, amount, token_id, sale_nonce, seller_sig, expected_sale_hash);
+    assert(result == 0);
+}

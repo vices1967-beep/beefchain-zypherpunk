@@ -1,0 +1,22 @@
+{
+  "jsonrpc": "2.0",
+  "method": "starknet_addInvokeTransaction",
+  "params": {
+    "invoke_transaction": {
+      "type": "INVOKE",
+      "sender_address": "0x3550921cd7b4b84e960151111260980e6ffdc61d55226e1dd1fd2d7b659f89d",
+      "calldata": [
+        "1",  # animal_id = 1
+        "1",  # proof_data array length = 1
+        "1",  # proof_data[0] = 1 (non-zero, válido en demo)
+        "4",  # public_inputs array length = 4
+        "111", "222", "500", "1"  # seller_zk, buyer_zk, amount, token_id
+      ],
+      "max_fee": "0x71afd498d0000",
+      "version": "0x1",
+      "signature": [],
+      "nonce": "0x0"
+    }
+  },
+  "id": 1
+}

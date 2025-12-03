@@ -16,11 +16,6 @@ pub mod access {
     pub mod roles;
 }
 
-// ============ LEGACY MODULES (TO BE REFACTORED) ============
-mod AnimalNFT;
-mod GanadoRegistry;
-mod Proxy;
-
 // ============ COMPONENTS ============
 pub mod components {
     pub mod access_control;
@@ -36,14 +31,14 @@ pub mod components {
 }
 
 // ============ ERROR DEFINITIONS ============
-mod animal;
 mod errors;
 
-
-// Contrato principal AnimalNFT
-
 // Verificadores ZK
+mod animal;
 mod private_transfer_verifier;
 mod zec_sale_verifier;
 mod price_verification_verifier;
 mod integrator;
+
+// NOTA: animal.cairo ahora es un contrato Starknet independiente
+// con #[starknet::contract] y se compila separadamente

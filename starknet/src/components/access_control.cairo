@@ -245,7 +245,7 @@ pub mod AccessControlComponent {
                         new_total += 1;
                     }
                     i += 1;
-                }
+                };
                 self.role_members_count.write(role, new_total);
                 self.emit(Event::RoleRevoked(RoleRevoked { role, account, sender: caller }));
             }
@@ -269,7 +269,7 @@ pub mod AccessControlComponent {
                         new_total += 1;
                     }
                     i += 1;
-                }
+                };
                 self.role_members_count.write(role, new_total);
                 self
                     .emit(
@@ -319,7 +319,7 @@ pub mod AccessControlComponent {
                     members.append(candidate);
                 }
                 i += 1;
-            }
+            };
             members
         }
     }
