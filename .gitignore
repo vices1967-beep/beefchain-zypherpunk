@@ -35,6 +35,13 @@ ENV/
 env.bak/
 venv.bak/
 garaga-venv/
+# Local scripts/env
+scripts/.env*
+scripts/ztarknet_accounts.json
+scripts/*accounts*.json
+garaga_verifiers/private_transfer_verifier_fix/full_proof_*.json
+starknet/full_proof_*.json
+circuits/private_transfer/proofs/
 
 
 barretenberg/

@@ -369,9 +369,10 @@ pub mod Animal {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState) {
+    fn constructor(ref self: ContractState, private_transfer_verifier: ContractAddress) {
         let caller = get_caller_address();
         self.access_control.initialize(caller);
+        self.garaga_proofs.initialize(private_transfer_verifier);
     }
 
     #[abi(embed_v0)]

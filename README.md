@@ -10,6 +10,17 @@
 
 BeefChain is a comprehensive traceability platform for the meat industry that uses StarkNet to ensure transparency, security and efficiency throughout the supply chain. From producer to end consumer, every step is immutably recorded on the blockchain. Now enhanced with Zero-Knowledge Proofs for commercial privacy.
 
+## 📍 Deployed Contracts
+
+| Network | RPC | Animal contract | Verifier (ultra_keccak_honk) |
+| --- | --- | --- | --- |
+| StarkNet Sepolia | `https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/…` | `0x02F285FdC38549ecFeBCf284ca73fC23b1AB42130C4D3F70Acf1521Af550dBdD` | `0x028db9f84d24f2f3831d4733f152905212be0e732287cbab0f5a4244299d2a9b` |
+| ZtarkNet (hackathon) | `https://ztarknet-madara.d.karnot.xyz` | `0x065f738557b85fdf7520e3ee6145853e67c3a5d2702bc1c7ce77cb18f9b3cb8b` | `0x018d69d9593358013894e73336f701f85e8cb1ea474c310792f9be18d365821b` |
+
+Notes:
+- The Animal constructor now takes the private transfer verifier address (passed during deploy).
+- Proofs/calldata for ZtarkNet live under `garaga_verifiers/private_transfer_verifier_fix/full_proof_ztarknet.json` (gitignored).
+
 ## 🌟 Key Features
 
 ### 🔗 Complete Traceability

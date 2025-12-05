@@ -16,11 +16,6 @@ pub mod access {
     pub mod roles;
 }
 
-// ============ LEGACY MODULES (TO BE REFACTORED) ============
-mod AnimalNFT;
-mod GanadoRegistry;
-mod Proxy;
-
 // ============ COMPONENTS ============
 pub mod components {
     pub mod access_control;
@@ -35,15 +30,16 @@ pub mod components {
     pub mod telemetry;
 }
 
+// Legacy modules (kept only if needed for migration)
+mod GanadoRegistry;
+mod Proxy;
+
 // ============ ERROR DEFINITIONS ============
 mod animal;
 mod errors;
-
-
-// Contrato principal AnimalNFT
+mod integrator;
+mod price_verification_verifier;
 
 // Verificadores ZK
 mod private_transfer_verifier;
 mod zec_sale_verifier;
-mod price_verification_verifier;
-mod integrator;
