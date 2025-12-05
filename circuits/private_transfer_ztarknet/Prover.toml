@@ -1,0 +1,8 @@
+# Private inputs (never revealed on-chain)
+price = "150000"              # $1,500.00 in cents (actual sale price)
+seller_secret = "123456789012345678901234567890"  # Seller's secret (must be < field modulus)
+buyer_secret = "987654321098765432109876543210"   # Buyer's secret (must be < field modulus)
+
+# Public inputs (visible on-chain)
+price_threshold = "100000"    # $1,000.00 in cents (minimum price requirement)
+animal_id = "12345"           # The animal being transferred

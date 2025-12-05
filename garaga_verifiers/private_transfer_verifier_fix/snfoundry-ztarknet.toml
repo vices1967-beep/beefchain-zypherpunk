@@ -1,0 +1,5 @@
+# Starknet Foundry Configuration for ZtarkNet
+[sncast.ztarknet]
+url = "https://rpc.regtest.ztarknet.cash"
+account = "redeploy"
+accounts-file = "~/.starknet_accounts/ztarknet.json"

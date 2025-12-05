@@ -64,6 +64,10 @@ pub trait IGaragaProofsComponent<TContractState> {
     fn get_price_verifications_count(self: @TContractState) -> u128;
 
     fn get_private_transfers_executed_count(self: @TContractState) -> u128;
+
+    // ========== Initialization ==========
+
+    fn initialize(ref self: TContractState, private_transfer_verifier: ContractAddress);
 }
 
 #[starknet::component]
@@ -452,6 +456,21 @@ pub mod GaragaProofsComponent {
         /// @notice Gets the total count of executed private transfers
         fn get_private_transfers_executed_count(self: @ComponentState<TContractState>) -> u128 {
             self.private_transfers_executed.read()
+        }
+
+        // ========== INITIALIZATION ==========
+
+        /// @notice Initializes the Garaga proofs component with private transfer verifier address
+        /// @param private_transfer_verifier Address of the deployed private transfer verifier
+        /// contract
+        fn initialize(
+            ref self: ComponentState<TContractState>, private_transfer_verifier: ContractAddress,
+        ) {
+            self.private_transfer_verifier.write(private_transfer_verifier);
+            self.next_proof_nonce.write(1);
+            self.zec_sales_verified.write(0);
+            self.price_verifications.write(0);
+            self.private_transfers_executed.write(0);
         }
     }
 

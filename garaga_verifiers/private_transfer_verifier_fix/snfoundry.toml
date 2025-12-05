@@ -1,0 +1,8 @@
+# Starknet Foundry Configuration
+[sncast.sepolia]
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/4_UTzxRAhIKqMUUVIAQ3o"
+account = "deployer"
+accounts-file = "~/.starknet_accounts/deployer.json"
+
+[sncast.default]
+account = "zt_deployer_ztn"
